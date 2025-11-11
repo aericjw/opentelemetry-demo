@@ -16,8 +16,8 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using OpenFeature;
+using OpenFeature.Hooks;
 using OpenFeature.Contrib.Providers.Flagd;
-using OpenFeature.Contrib.Hooks.Otel;
 
 var builder = WebApplication.CreateBuilder(args);
 string valkeyAddress = builder.Configuration["VALKEY_ADDR"];
@@ -41,9 +41,9 @@ builder.Services.AddSingleton<ICartStore>(x =>
 builder.Services.AddOpenFeature(openFeatureBuilder =>
 {
     openFeatureBuilder
-        .AddHostedFeatureLifecycle()
         .AddProvider(_ => new FlagdProvider())
-        .AddHook<TracingHook>();
+        .AddHook<MetricsHook>()
+        .AddHook<TraceEnricherHook>();
 });
 
 builder.Services.AddSingleton(x =>
@@ -56,6 +56,7 @@ builder.Services.AddSingleton(x =>
 
 Action<ResourceBuilder> appResourceBuilder =
     resource => resource
+        .AddService(builder.Environment.ApplicationName)
         .AddContainerDetector()
         .AddHostDetector();
 
@@ -71,6 +72,7 @@ builder.Services.AddOpenTelemetry()
         .AddOtlpExporter())
     .WithMetrics(meterBuilder => meterBuilder
         .AddMeter("OpenTelemetry.Demo.Cart")
+        .AddMeter("OpenFeature")
         .AddProcessInstrumentation()
         .AddRuntimeInstrumentation()
         .AddAspNetCoreInstrumentation()
