@@ -2,87 +2,92 @@ components:
   accounting:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
-  #   envOverrides:
-  #     - name: OTEL_COLLECTOR_NAME
-  #       value: aeric-walls-aks-telemetry-ingest.dynatrace.svc.cluster.local
-  # ad:
-  #   envOverrides:
-  #     - name: OTEL_COLLECTOR_NAME
-  #       value: aeric-walls-aks-telemetry-ingest.dynatrace.svc.cluster.local
-  # cart:
-  #   envOverrides:
-  #     - name: OTEL_COLLECTOR_NAME
-  #       value: aeric-walls-aks-telemetry-ingest.dynatrace.svc.cluster.local
-  # checkout:
-  #   envOverrides:
-  #     - name: OTEL_COLLECTOR_NAME
-  #       value: aeric-walls-aks-telemetry-ingest.dynatrace.svc.cluster.local
-  # currency:
-  #   envOverrides:
-  #     - name: OTEL_COLLECTOR_NAME
-  #       value: aeric-walls-aks-telemetry-ingest.dynatrace.svc.cluster.local
-  # email:
-  #   envOverrides:
-  #     - name: OTEL_COLLECTOR_NAME
-  #       value: aeric-walls-aks-telemetry-ingest.dynatrace.svc.cluster.local
+  ad:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-java: "true"
+    resources:
+      requests:
+        cpu: 200m
+        memory: 2Gi
+      limits:
+        cpu: 200m
+        memory: 2Gi
+  cart:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+  checkout:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-go: "true"
+      instrumentation.opentelemetry.io/otel-go-auto-target-exe: "./checkout"
+  currency:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+  email:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
   flagd:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
-  #   envOverrides:
-  #     - name: OTEL_COLLECTOR_NAME
-  #       value: aeric-walls-aks-telemetry-ingest.dynatrace.svc.cluster.local
-  # fraud-detection:
-  #   envOverrides:
-  #     - name: OTEL_COLLECTOR_NAME
-  #       value: aeric-walls-aks-telemetry-ingest.dynatrace.svc.cluster.local
-  # frontend:
-  #   envOverrides:
-      # - name: OTEL_COLLECTOR_NAME
-      #   value: aeric-walls-aks-telemetry-ingest.dynatrace.svc.cluster.local
-      # - name: PUBLIC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
-      #   value: http://aeric-walls-aks-telemetry-ingest.dynatrace.svc.cluster.local:4318
-  # frontend-proxy:
-  #   envOverrides:
-  #     - name: OTEL_COLLECTOR_NAME
-  #       value: aeric-walls-aks-telemetry-ingest.dynatrace.svc.cluster.local
-  # image-provider:
-  #   envOverrides:
-  #     - name: OTEL_COLLECTOR_NAME
-  #       value: aeric-walls-aks-telemetry-ingest.dynatrace.svc.cluster.local
-  # kafka:
-  #   envOverrides:
-  #     - name: OTEL_COLLECTOR_NAME
-  #       value: aeric-walls-aks-telemetry-ingest.dynatrace.svc.cluster.local
-  # load-generator:
-  #   envOverrides:
-  #     - name: OTEL_COLLECTOR_NAME
-  #       value: aeric-walls-aks-telemetry-ingest.dynatrace.svc.cluster.local
+  fraud-detection:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+    resources:
+      requests:
+        cpu: 200m
+        memory: 2Gi
+      limits:
+        cpu: 200m
+        memory: 2Gi
+  frontend:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-nodejs: "true"
+  frontend-proxy:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+  image-provider:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+  kafka:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 6Gi
+      limits:
+        cpu: 1000m
+        memory: 6Gi
+  load-generator:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+    resources:
+      requests:
+        cpu: 2000m
+        memory: 2Gi
+      limits:
+        cpu: 2000m
+        memory: 2Gi
   payment:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
-  #   envOverrides:
-  #     - name: OTEL_COLLECTOR_NAME
-  #       value: aeric-walls-aks-telemetry-ingest.dynatrace.svc.cluster.local
-  # product-catalog:
-  #   envOverrides:
-  #     - name: OTEL_COLLECTOR_NAME
-  #       value: aeric-walls-aks-telemetry-ingest.dynatrace.svc.cluster.local
-  # quote:
-  #   envOverrides:
-  #     - name: OTEL_COLLECTOR_NAME
-  #       value: aeric-walls-aks-telemetry-ingest.dynatrace.svc.cluster.local
-  # recommendation:
-  #   envOverrides:
-  #     - name: OTEL_COLLECTOR_NAME
-  #       value: aeric-walls-aks-telemetry-ingest.dynatrace.svc.cluster.local
-  # shipping:
-  #   envOverrides:
-  #     - name: OTEL_COLLECTOR_NAME
-  #       value: aeric-walls-aks-telemetry-ingest.dynatrace.svc.cluster.local
-  # valkey-cart:
-  #   envOverrides:
-  #     - name: OTEL_COLLECTOR_NAME
-  #       value: aeric-walls-aks-telemetry-ingest.dynatrace.svc.cluster.local
+  product-catalog:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+  quote:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+  recommendation:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+  shipping:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+  valkey-cart:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
 opensearch:
   enabled: false
 jaeger:
@@ -92,7 +97,7 @@ prometheus:
 grafana:
   enabled: false
 opentelemetry-collector:
-  enabled: true
+  enabled: false
   config:
     receivers:
       otlp:
