@@ -1,7 +1,17 @@
+default:
+  envOverrides:
+    - name: OTEL_COLLECTOR_NAME
+      value: dynatrace-otel-collector.dynatrace.svc.cluster.local
 components:
   accounting:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-dotnet: "true"
+    resources:
+      requests:
+        memory: 500Mi
+      limits:
+        memory: 500Mi
   ad:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
@@ -16,6 +26,7 @@ components:
   cart:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-dotnet: "true"
   checkout:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
@@ -24,15 +35,18 @@ components:
   currency:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-sdk: "true"
   email:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-sdk: "true"
   flagd:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
   fraud-detection:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-java: "true"
     resources:
       requests:
         cpu: 200m
@@ -53,6 +67,7 @@ components:
   kafka:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-java: "true"
     resources:
       requests:
         cpu: 1000m
@@ -60,6 +75,10 @@ components:
       limits:
         cpu: 1000m
         memory: 6Gi
+  # llm:
+  #   podAnnotations:
+  #     oneagent.dynatrace.com/inject: "false"
+  #     instrumentation.opentelemetry.io/inject-python: "true"
   load-generator:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
@@ -73,18 +92,28 @@ components:
   payment:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-nodejs: "true"
   product-catalog:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-go: "true"
+      instrumentation.opentelemetry.io/otel-go-auto-target-exe: "./product-catalog"
+  # product-reviews:
+  #   podAnnotations:
+  #     oneagent.dynatrace.com/inject: "false"
+  #     instrumentation.opentelemetry.io/inject-python: "true"
   quote:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-sdk: "true"
   recommendation:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-python: "true"
   shipping:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-sdk: "true"
   valkey-cart:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
