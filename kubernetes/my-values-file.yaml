@@ -1,0 +1,392 @@
+default:
+  envOverrides:
+    - name: OTEL_COLLECTOR_NAME
+      value: dynatrace-otel-collector.dynatrace.svc.cluster.local
+components:
+  accounting:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-dotnet: "true"
+    resources:
+      requests:
+        memory: 500Mi
+      limits:
+        memory: 500Mi
+  ad:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-java: "true"
+    resources:
+      requests:
+        cpu: 200m
+        memory: 2Gi
+      limits:
+        cpu: 200m
+        memory: 2Gi
+  cart:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-dotnet: "true"
+  checkout:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-go: "true"
+      instrumentation.opentelemetry.io/otel-go-auto-target-exe: "./checkout"
+  currency:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-sdk: "true"
+  email:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-sdk: "true"
+  flagd:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+  fraud-detection:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-java: "true"
+    resources:
+      requests:
+        cpu: 200m
+        memory: 2Gi
+      limits:
+        cpu: 200m
+        memory: 2Gi
+  frontend:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-nodejs: "true"
+  frontend-proxy:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+    service:
+      type: LoadBalancer
+  image-provider:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+  kafka:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-java: "true"
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 6Gi
+      limits:
+        cpu: 1000m
+        memory: 6Gi
+  # llm:
+  #   podAnnotations:
+  #     oneagent.dynatrace.com/inject: "false"
+  #     instrumentation.opentelemetry.io/inject-python: "true"
+  load-generator:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+    resources:
+      requests:
+        cpu: 2000m
+        memory: 2Gi
+      limits:
+        cpu: 2000m
+        memory: 2Gi
+    envOverrides:
+    - name: LOCUST_USERS
+      value: "30"
+  payment:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-nodejs: "true"
+  product-catalog:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-go: "true"
+      instrumentation.opentelemetry.io/otel-go-auto-target-exe: "./product-catalog"
+  # product-reviews:
+  #   podAnnotations:
+  #     oneagent.dynatrace.com/inject: "false"
+  #     instrumentation.opentelemetry.io/inject-python: "true"
+  quote:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-sdk: "true"
+  recommendation:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-python: "true"
+  shipping:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+      instrumentation.opentelemetry.io/inject-sdk: "true"
+  valkey-cart:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+# opensearch:
+#   enabled: false
+# jaeger:
+#   enabled: false
+# prometheus:
+#   enabled: false
+# grafana:
+#   enabled: false
+opentelemetry-collector:
+  enabled: false
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: ${env:MY_POD_IP}:4317
+          http:
+            cors:
+              allowed_origins:
+              - http://*
+              - https://*
+            endpoint: ${env:MY_POD_IP}:4318
+      hostmetrics:
+        root_path: /hostfs
+        scrapers:
+          cpu:
+            metrics:
+              system.cpu.utilization:
+                enabled: true
+          disk: {}
+          load: {}
+          filesystem:
+            exclude_mount_points:
+              mount_points:
+                - /dev/*
+                - /proc/*
+                - /sys/*
+                - /run/k3s/containerd/*
+                - /var/lib/docker/*
+                - /var/lib/kubelet/*
+                - /snap/*
+              match_type: regexp
+            exclude_fs_types:
+              fs_types:
+                - autofs
+                - binfmt_misc
+                - bpf
+                - cgroup2
+                - configfs
+                - debugfs
+                - devpts
+                - devtmpfs
+                - fusectl
+                - hugetlbfs
+                - iso9660
+                - mqueue
+                - nsfs
+                - overlay
+                - proc
+                - procfs
+                - pstore
+                - rpc_pipefs
+                - securityfs
+                - selinuxfs
+                - squashfs
+                - sysfs
+                - tracefs
+              match_type: strict
+          memory:
+            metrics:
+              system.memory.utilization:
+                enabled: true
+          network: {}
+          paging: {}
+          processes: {}
+          process:
+            mute_process_exe_error: true
+            mute_process_io_error: true
+            mute_process_user_error: true 
+    processors:
+      k8sattributes:
+        extract:
+          metadata:
+            - k8s.pod.name
+            - k8s.pod.uid
+            - k8s.pod.ip
+            - k8s.pod.hostname
+            - k8s.pod.start_time
+            - k8s.deployment.uid
+            - k8s.deployment.name
+            - k8s.replicaset.uid
+            - k8s.replicaset.name
+            - k8s.statefulset.uid
+            - k8s.statefulset.name
+            - k8s.daemonset.uid
+            - k8s.daemonset.name
+            - k8s.job.uid
+            - k8s.job.name
+            - k8s.cronjob.name
+            - k8s.namespace.name
+            - k8s.node.name
+            - k8s.cluster.uid
+            - k8s.container.name
+            - container.id
+            - container.image.name
+            - container.image.tag
+            - container.image.repo_digests
+          annotations:
+            - from: pod
+              key_regex: metadata.dynatrace.com/(.*)
+              tag_name: $$1
+        pod_association:
+          - sources:
+            - from: resource_attribute
+              name: k8s.pod.name
+            - from: resource_attribute
+              name: k8s.namespace.name
+          - sources:
+            - from: resource_attribute
+              name: k8s.pod.ip
+          - sources:
+            - from: resource_attribute
+              name: k8s.pod.uid
+          - sources:
+            - from: connection
+      transform:
+        error_mode: ignore
+        trace_statements: &dynatrace_transformations
+          - context: resource
+            statements:
+              - set(attributes["k8s.workload.kind"], "job") where IsString(attributes["k8s.job.name"])
+              - set(attributes["k8s.workload.name"], attributes["k8s.job.name"]) where IsString(attributes["k8s.job.name"])
+              - set(attributes["k8s.workload.kind"], "cronjob") where IsString(attributes["k8s.cronjob.name"])
+              - set(attributes["k8s.workload.name"], attributes["k8s.cronjob.name"]) where IsString(attributes["k8s.cronjob.name"])
+              - set(attributes["k8s.workload.kind"], "daemonset") where IsString(attributes["k8s.daemonset.name"])
+              - set(attributes["k8s.workload.name"], attributes["k8s.daemonset.name"]) where IsString(attributes["k8s.daemonset.name"])
+              - set(attributes["k8s.workload.kind"], "statefulset") where IsString(attributes["k8s.statefulset.name"])
+              - set(attributes["k8s.workload.name"], attributes["k8s.statefulset.name"]) where IsString(attributes["k8s.statefulset.name"])
+              - set(attributes["k8s.workload.kind"], "replicaset") where IsString(attributes["k8s.replicaset.name"])
+              - set(attributes["k8s.workload.name"], attributes["k8s.replicaset.name"]) where IsString(attributes["k8s.replicaset.name"])
+              - set(attributes["k8s.workload.kind"], "deployment") where IsString(attributes["k8s.deployment.name"])
+              - set(attributes["k8s.workload.name"], attributes["k8s.deployment.name"]) where IsString(attributes["k8s.deployment.name"])
+        metric_statements: *dynatrace_transformations
+        log_statements: *dynatrace_transformations
+      cumulativetodelta: {}
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 75
+        spike_limit_percentage: 15
+      batch:
+        send_batch_size: 10000
+        timeout: 10s
+      resourcedetection/aks:
+        detectors: [env, azure, aks, system, docker]
+        timeout: 2s
+        override: false
+    exporters:
+      otlphttp:
+        endpoint: "${env:DT_ENDPOINT}"
+        headers:
+          Authorization: "Api-Token ${env:DT_API_TOKEN}"
+      debug:
+        verbosity: basic
+        sampling_initial: 5
+        sampling_thereafter: 2000
+    
+    connectors:
+      spanmetrics: {}
+    extensions:
+      health_check:
+        endpoint: "0.0.0.0:13133"
+        path: "/"
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, resourcedetection/aks, k8sattributes, transform, batch]
+          exporters: [otlphttp, spanmetrics]
+        metrics:
+          receivers: [otlp, spanmetrics, hostmetrics]
+          processors: [memory_limiter, cumulativetodelta, resourcedetection/aks, k8sattributes, transform, batch]
+          exporters: [otlphttp]
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, resourcedetection/aks, k8sattributes, transform, batch]
+          exporters: [otlphttp]
+      extensions:
+      - health_check
+
+      # turn on self-monitoring
+      telemetry:
+        metrics:
+          # metrics verbosity level. Higher verbosity means more metrics.
+          # The dashboard relies on metrics at level detailed.
+          level: detailed
+          # set up OTLP exporter
+          readers:
+            - periodic:
+                interval: 60000
+                exporter:
+                  otlp:
+                    protocol: http/protobuf
+                    temporality_preference: delta
+                    endpoint: "${env:DT_ENDPOINT}/v1/metrics"
+                    headers:
+                      - name: Authorization
+                        value: "Api-Token ${env:DT_API_TOKEN}"
+
+  extraEnvs: []
+  extraEnvsFrom:
+    - secretRef:
+        name: dynatrace-otelcol-dt-api-credentials
+  extraVolumes:
+    - name: hostfs
+      hostPath:
+        path: /
+
+  # This also supports template content, which will eventually be converted to yaml.
+  extraVolumeMounts:
+    - mountPath: /hostfs
+      name: hostfs
+      readOnly: true
+
+  # Configuration for ports
+  # nodePort is also allowed
+  ports:
+    otlp:
+      enabled: true
+      containerPort: 4317
+      servicePort: 4317
+      hostPort: 4317
+      protocol: TCP
+      appProtocol: grpc
+    otlp-http:
+      enabled: true
+      containerPort: 4318
+      servicePort: 4318
+      hostPort: 4318
+      protocol: TCP
+    jaeger-compact:
+      enabled: false
+    jaeger-thrift:
+      enabled: false
+    jaeger-grpc:
+      enabled: false
+    zipkin:
+      enabled: false
+    metrics:
+      enabled: true
+      containerPort: 8888
+      servicePort: 8888
+      protocol: TCP
+    health:
+      containerPort: 13133
+      servicePort: 13133
+      protocol: TCP
+      enabled: true
+
+  useGOMEMLIMIT: true
+
+  resources:
+    limits:
+      memory: 512Mi
+
+  podAnnotations:
+    metrics.dynatrace.com/port: "8888"
+    metrics.dynatrace.com/scrape: "true"
+    oneagent.dynatrace.com/inject: "false"
