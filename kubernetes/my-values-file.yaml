@@ -61,6 +61,8 @@ components:
   frontend-proxy:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
+    service:
+      type: LoadBalancer
   image-provider:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
@@ -89,6 +91,9 @@ components:
       limits:
         cpu: 2000m
         memory: 2Gi
+    envOverrides:
+    - name: LOCUST_USERS
+      value: "30"
   payment:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
@@ -117,14 +122,14 @@ components:
   valkey-cart:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
-opensearch:
-  enabled: false
-jaeger:
-  enabled: false
-prometheus:
-  enabled: false
-grafana:
-  enabled: false
+# opensearch:
+#   enabled: false
+# jaeger:
+#   enabled: false
+# prometheus:
+#   enabled: false
+# grafana:
+#   enabled: false
 opentelemetry-collector:
   enabled: false
   config:
