@@ -69,7 +69,6 @@ const ProductDetail: NextPage = () => {
     >
       <Head>
         <title>Otel Demo - Product</title>
-        <script type="text/javascript" src="https://js-cdn.dynatracelabs.com/jstag/145e049b9b1/bf08595vkm/b4c9a547b37a0dbc_complete.js" crossorigin="anonymous"></script>
       </Head>
       <Layout>
         <S.ProductDetail data-cy={CypressFields.ProductDetail}>
