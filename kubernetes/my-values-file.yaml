@@ -1,12 +1,10 @@
 default:
-  envOverrides:
-    - name: OTEL_COLLECTOR_NAME
-      value: dynatrace-otel-collector.dynatrace.svc.cluster.local
+  image:
+    pullPolicy: Always
 components:
   accounting:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
-      instrumentation.opentelemetry.io/inject-dotnet: "true"
     resources:
       requests:
         memory: 500Mi
@@ -15,123 +13,144 @@ components:
   ad:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
-      instrumentation.opentelemetry.io/inject-java: "true"
     resources:
       requests:
-        cpu: 200m
-        memory: 2Gi
+        memory: 300Mi
       limits:
-        cpu: 200m
-        memory: 2Gi
+        memory: 300Mi
   cart:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
-      instrumentation.opentelemetry.io/inject-dotnet: "true"
   checkout:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
-      instrumentation.opentelemetry.io/inject-go: "true"
-      instrumentation.opentelemetry.io/otel-go-auto-target-exe: "./checkout"
   currency:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
-      instrumentation.opentelemetry.io/inject-sdk: "true"
   email:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
-      instrumentation.opentelemetry.io/inject-sdk: "true"
   flagd:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
   fraud-detection:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
-      instrumentation.opentelemetry.io/inject-java: "true"
     resources:
       requests:
-        cpu: 200m
-        memory: 2Gi
+        memory: 300Mi
       limits:
-        cpu: 200m
-        memory: 2Gi
+        memory: 300Mi
   frontend:
+    imageOverride:
+      repository: "aericjw/opentelemetry-demo"
+      tag: "latest-frontend"
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
-      instrumentation.opentelemetry.io/inject-nodejs: "true"
   frontend-proxy:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
     service:
       type: LoadBalancer
+      annotations:
+        service.beta.kubernetes.io/azure-dns-label: "aeric-otel-demo"
   image-provider:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
   kafka:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
-      instrumentation.opentelemetry.io/inject-java: "true"
     resources:
       requests:
         cpu: 1000m
-        memory: 6Gi
+        memory: 1Gi
       limits:
         cpu: 1000m
-        memory: 6Gi
-  # llm:
-  #   podAnnotations:
-  #     oneagent.dynatrace.com/inject: "false"
-  #     instrumentation.opentelemetry.io/inject-python: "true"
+        memory: 1Gi
+  llm:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
   load-generator:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
     resources:
       requests:
-        cpu: 2000m
+        cpu: 1000m
         memory: 2Gi
       limits:
-        cpu: 2000m
+        cpu: 1000m
         memory: 2Gi
     envOverrides:
     - name: LOCUST_USERS
-      value: "30"
+      value: "10"
   payment:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
-      instrumentation.opentelemetry.io/inject-nodejs: "true"
+  postgresql:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+    service:
+      type: LoadBalancer
+      annotations:
+        service.beta.kubernetes.io/azure-dns-label: "aeric-postgresql"
   product-catalog:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
-      instrumentation.opentelemetry.io/inject-go: "true"
-      instrumentation.opentelemetry.io/otel-go-auto-target-exe: "./product-catalog"
-  # product-reviews:
-  #   podAnnotations:
-  #     oneagent.dynatrace.com/inject: "false"
-  #     instrumentation.opentelemetry.io/inject-python: "true"
+  product-reviews:
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+    resources:
+      requests:
+        memory: 200Mi
+      limits:
+        memory: 200Mi
+    imageOverride:
+      repository: "aericjw/opentelemetry-demo"
+      tag: "latest-product-reviews"
+    envOverrides:
+    - name: LLM_BASE_URL
+      value: "https://api.openai.com/v1"
+    - name: LLM_MODEL
+      value: gpt-4o-mini
+    - name: OPENAI_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: openai-api-key
+          key: OPENAI_API_KEY
   quote:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
-      instrumentation.opentelemetry.io/inject-sdk: "true"
   recommendation:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
-      instrumentation.opentelemetry.io/inject-python: "true"
   shipping:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
-      instrumentation.opentelemetry.io/inject-sdk: "true"
   valkey-cart:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
-# opensearch:
-#   enabled: false
-# jaeger:
-#   enabled: false
-# prometheus:
-#   enabled: false
-# grafana:
-#   enabled: false
-opentelemetry-collector:
+opensearch:
   enabled: false
+jaeger:
+  enabled: false
+prometheus:
+  enabled: false
+grafana:
+  enabled: false
+opentelemetry-collector:
+  enabled: true
+  presets:
+      hostMetrics:
+        enabled: false
+      kubernetesAttributes:
+        enabled: false
+      kubeletMetrics:
+        enabled: false
+      clusterMetrics:
+        enabled: false
+      annotationDiscovery:
+        metrics:
+          enabled: false
   config:
     receivers:
       otlp:
@@ -144,63 +163,6 @@ opentelemetry-collector:
               - http://*
               - https://*
             endpoint: ${env:MY_POD_IP}:4318
-      hostmetrics:
-        root_path: /hostfs
-        scrapers:
-          cpu:
-            metrics:
-              system.cpu.utilization:
-                enabled: true
-          disk: {}
-          load: {}
-          filesystem:
-            exclude_mount_points:
-              mount_points:
-                - /dev/*
-                - /proc/*
-                - /sys/*
-                - /run/k3s/containerd/*
-                - /var/lib/docker/*
-                - /var/lib/kubelet/*
-                - /snap/*
-              match_type: regexp
-            exclude_fs_types:
-              fs_types:
-                - autofs
-                - binfmt_misc
-                - bpf
-                - cgroup2
-                - configfs
-                - debugfs
-                - devpts
-                - devtmpfs
-                - fusectl
-                - hugetlbfs
-                - iso9660
-                - mqueue
-                - nsfs
-                - overlay
-                - proc
-                - procfs
-                - pstore
-                - rpc_pipefs
-                - securityfs
-                - selinuxfs
-                - squashfs
-                - sysfs
-                - tracefs
-              match_type: strict
-          memory:
-            metrics:
-              system.memory.utilization:
-                enabled: true
-          network: {}
-          paging: {}
-          processes: {}
-          process:
-            mute_process_exe_error: true
-            mute_process_io_error: true
-            mute_process_user_error: true 
     processors:
       k8sattributes:
         extract:
@@ -275,7 +237,7 @@ opentelemetry-collector:
         send_batch_size: 10000
         timeout: 10s
       resourcedetection/aks:
-        detectors: [env, azure, aks, system, docker]
+        detectors: [env, azure, aks, system]
         timeout: 2s
         override: false
     exporters:
@@ -301,7 +263,7 @@ opentelemetry-collector:
           processors: [memory_limiter, resourcedetection/aks, k8sattributes, transform, batch]
           exporters: [otlphttp, spanmetrics]
         metrics:
-          receivers: [otlp, spanmetrics, hostmetrics]
+          receivers: [otlp, spanmetrics]
           processors: [memory_limiter, cumulativetodelta, resourcedetection/aks, k8sattributes, transform, batch]
           exporters: [otlphttp]
         logs:
@@ -334,16 +296,6 @@ opentelemetry-collector:
   extraEnvsFrom:
     - secretRef:
         name: dynatrace-otelcol-dt-api-credentials
-  extraVolumes:
-    - name: hostfs
-      hostPath:
-        path: /
-
-  # This also supports template content, which will eventually be converted to yaml.
-  extraVolumeMounts:
-    - mountPath: /hostfs
-      name: hostfs
-      readOnly: true
 
   # Configuration for ports
   # nodePort is also allowed

@@ -42,6 +42,13 @@ from openai import OpenAI
 
 from google.protobuf.json_format import MessageToJson, MessageToDict
 
+# Traceloop
+os.environ["TRACELOOP_TELEMETRY"] = "false"
+
+from traceloop.sdk import Traceloop
+
+Traceloop.init()
+
 llm_host = None
 llm_port = None
 llm_mock_url = None
