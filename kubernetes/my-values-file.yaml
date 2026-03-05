@@ -82,7 +82,7 @@ components:
         memory: 2Gi
     envOverrides:
     - name: LOCUST_USERS
-      value: "10"
+      value: "20"
   payment:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
@@ -104,19 +104,6 @@ components:
         memory: 200Mi
       limits:
         memory: 200Mi
-    imageOverride:
-      repository: "aericjw/opentelemetry-demo"
-      tag: "latest-product-reviews"
-    envOverrides:
-    - name: LLM_BASE_URL
-      value: "https://api.openai.com/v1"
-    - name: LLM_MODEL
-      value: gpt-4o-mini
-    - name: OPENAI_API_KEY
-      valueFrom:
-        secretKeyRef:
-          name: openai-api-key
-          key: OPENAI_API_KEY
   quote:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
@@ -143,14 +130,14 @@ opentelemetry-collector:
       hostMetrics:
         enabled: false
       kubernetesAttributes:
-        enabled: false
+        enabled: true
       kubeletMetrics:
         enabled: false
       clusterMetrics:
         enabled: false
       annotationDiscovery:
         metrics:
-          enabled: false
+          enabled: true
   config:
     receivers:
       otlp:
@@ -228,7 +215,8 @@ opentelemetry-collector:
               - set(attributes["k8s.workload.name"], attributes["k8s.deployment.name"]) where IsString(attributes["k8s.deployment.name"])
         metric_statements: *dynatrace_transformations
         log_statements: *dynatrace_transformations
-      cumulativetodelta: {}
+      cumulativetodelta:
+        max_staleness: 25h
       memory_limiter:
         check_interval: 1s
         limit_percentage: 75
@@ -243,6 +231,7 @@ opentelemetry-collector:
     exporters:
       otlphttp:
         endpoint: "${env:DT_ENDPOINT}"
+        logs_endpoint: "${env:DT_ENDPOINT}/v1/logs?structure=flattened"
         headers:
           Authorization: "Api-Token ${env:DT_API_TOKEN}"
       debug:
