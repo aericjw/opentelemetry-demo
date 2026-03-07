@@ -1,6 +1,8 @@
 default:
   image:
     pullPolicy: Always
+  repository: aericjw/opentelemetry-demo
+
 components:
   accounting:
     podAnnotations:
@@ -42,9 +44,6 @@ components:
       limits:
         memory: 300Mi
   frontend:
-    imageOverride:
-      repository: "aericjw/opentelemetry-demo"
-      tag: "latest-frontend"
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
   frontend-proxy:
@@ -104,12 +103,7 @@ components:
         memory: 200Mi
       limits:
         memory: 200Mi
-    imageOverride:
-      repository: "aericjw/opentelemetry-demo"
-      tag: "latest-product-reviews"
     envOverrides:
-    - name: LLM_BASE_URL
-      value: "https://api.openai.com/v1"
     - name: LLM_MODEL
       value: claude-sonnet-4-6
     - name: ANTHROPIC_API_KEY
