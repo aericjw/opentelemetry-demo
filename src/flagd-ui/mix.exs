@@ -18,7 +18,13 @@ defmodule FlagdUi.MixProject do
           applications: [
             opentelemetry_exporter: :permanent,
             opentelemetry: :temporary
-          ]
+          ],
+          # Allow the Dockerfile to supply a cross-compiled ERTS path so that
+          # the builder stage can run natively on the host architecture while
+          # still bundling an ERTS for the target architecture.
+          # When RELEASE_ERTS_PATH is unset the default behaviour (bundle the
+          # local ERTS) is preserved.
+          include_erts: System.get_env("RELEASE_ERTS_PATH") || true
         ]
       ]
     ]

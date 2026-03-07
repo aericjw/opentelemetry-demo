@@ -21,7 +21,17 @@ ARG DEBIAN_VERSION=bullseye-20251117-slim
 ARG BUILDER_IMAGE="docker.io/hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
 ARG RUNNER_IMAGE="docker.io/debian:${DEBIAN_VERSION}"
 
-FROM ${BUILDER_IMAGE} AS builder
+# Provides the ERTS for the TARGET platform (e.g. linux/amd64).
+# Intentionally no --platform override: this stage runs on whatever platform
+# is being targeted so Docker fetches the correct architecture variant.
+FROM ${BUILDER_IMAGE} AS erts-provider
+
+# Build stage runs on the BUILD platform (e.g. linux/arm64 on Apple Silicon)
+# to avoid the Erlang prim_tty NIF crash that occurs under QEMU emulation
+# when OTP 26+ tries to initialise the TTY driver.
+# We copy the target-platform ERTS in from erts-provider so that mix release
+# still bundles the correct ERTS for the target machine.
+FROM --platform=$BUILDPLATFORM ${BUILDER_IMAGE} AS builder
 
 # install build dependencies
 RUN apt-get update \
@@ -64,7 +74,11 @@ RUN mix assets.deploy
 RUN mix compile
 
 COPY ./src/flagd-ui/rel rel
-RUN mix release
+
+# Pull in the target-platform ERTS so that the release bundles the correct
+# architecture binaries even though the builder runs on $BUILDPLATFORM.
+COPY --from=erts-provider /usr/local/lib/erlang /tmp/target-erts
+RUN RELEASE_ERTS_PATH=/tmp/target-erts mix release
 
 # start a new build stage so that the final image will only contain
 # the compiled release and other runtime necessities
@@ -89,6 +103,8 @@ RUN chown nobody /app
 ENV MIX_ENV="prod"
 
 # Only copy the final release from the build stage
+# mix release bundled the target-platform ERTS (from erts-provider) so the
+# release runs correctly on the target machine without any ERTS swap.
 COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/flagd_ui ./
 
 EXPOSE ${FLAGD_UI_PORT}
