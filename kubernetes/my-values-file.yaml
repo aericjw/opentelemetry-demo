@@ -111,12 +111,12 @@ components:
     - name: LLM_BASE_URL
       value: "https://api.openai.com/v1"
     - name: LLM_MODEL
-      value: gpt-4o-mini
-    - name: OPENAI_API_KEY
+      value: claude-sonnet-4-6
+    - name: ANTHROPIC_API_KEY
       valueFrom:
         secretKeyRef:
-          name: openai-api-key
-          key: OPENAI_API_KEY
+          name: anthropic-api-key
+          key: ANTHROPIC_API_KEY
   quote:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"

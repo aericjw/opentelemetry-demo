@@ -38,7 +38,7 @@ MarkupSafe==3.0.3
 mdurl==0.1.2
 mmh3==5.2.0
 multidict==6.7.1
-openai==2.8.1
+
 openfeature-hooks-opentelemetry==0.2.0
 openfeature-provider-flagd==0.2.3
 openfeature_sdk==0.8.4

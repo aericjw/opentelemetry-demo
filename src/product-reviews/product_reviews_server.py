@@ -37,8 +37,8 @@ from metrics import (
     init_metrics
 )
 
-# OpenAI
-from openai import OpenAI
+# Anthropic
+import anthropic
 
 from google.protobuf.json_format import MessageToJson, MessageToDict
 
@@ -56,42 +56,36 @@ llm_base_url = None
 llm_api_key = None
 llm_model = None
 
-# --- Define the tool for the OpenAI API ---
+# --- Define the tools for the Anthropic API ---
 tools = [
     {
-        "type": "function",
-        "function": {
-            "name": "fetch_product_reviews",
-            "description": "Executes a SQL query to retrieve reviews for a particular product.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "product_id": {
-                        "type": "string",
-                        "description": "The product ID to fetch product reviews for.",
-                    }
-                },
-                "required": ["product_id"],
+        "name": "fetch_product_reviews",
+        "description": "Executes a SQL query to retrieve reviews for a particular product.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_id": {
+                    "type": "string",
+                    "description": "The product ID to fetch product reviews for.",
+                }
             },
-        }
+            "required": ["product_id"],
+        },
     },
-      {
-          "type": "function",
-          "function": {
-              "name": "fetch_product_info",
-              "description": "Retrieves information for a particular product.",
-              "parameters": {
-                  "type": "object",
-                  "properties": {
-                      "product_id": {
-                          "type": "string",
-                          "description": "The product ID to fetch information for.",
-                      }
-                  },
-                  "required": ["product_id"],
-              },
-          }
-      }
+    {
+        "name": "fetch_product_info",
+        "description": "Retrieves information for a particular product.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_id": {
+                    "type": "string",
+                    "description": "The product ID to fetch information for.",
+                }
+            },
+            "required": ["product_id"],
+        },
+    }
 ]
 
 class ProductReviewService(demo_pb2_grpc.ProductReviewServiceServicer):
@@ -168,6 +162,8 @@ def get_ai_assistant_response(request_product_id, question):
         span.set_attribute("app.product.id", request_product_id)
         span.set_attribute("app.product.question", question)
 
+        system_prompt = "You are a helpful assistant that answers related to a specific product. Use tools as needed to fetch the product reviews and product information. Keep the response brief with no more than 1-2 sentences. If you don't know the answer, just say you don't know."
+
         llm_rate_limit_error = check_feature_flag("llmRateLimitError")
         logger.info(f"llmRateLimitError feature flag: {llm_rate_limit_error}")
         if llm_rate_limit_error:
@@ -177,26 +173,24 @@ def get_ai_assistant_response(request_product_id, question):
             if random_number < 0.5:
 
                 # ensure the mock LLM is always used, since we want to generate a 429 error
-                client = OpenAI(
+                client = anthropic.Anthropic(
                     base_url=f"{llm_mock_url}",
-                    # The OpenAI API requires an api_key to be present, but
-                    # our LLM doesn't use it
                     api_key=f"{llm_api_key}"
                 )
 
                 user_prompt = f"Answer the following question about product ID:{request_product_id}: {question}"
                 messages = [
-                   {"role": "system", "content": "You are a helpful assistant that answers related to a specific product. Use tools as needed to fetch the product reviews and product information. Keep the response brief with no more than 1-2 sentences. If you don't know the answer, just say you don't know."},
                    {"role": "user", "content": user_prompt}
                 ]
                 logger.info(f"Invoking mock LLM with model: astronomy-llm-rate-limit")
 
                 try:
-                    initial_response = client.chat.completions.create(
+                    initial_response = client.messages.create(
                         model="astronomy-llm-rate-limit",
+                        max_tokens=1024,
+                        system=system_prompt,
                         messages=messages,
                         tools=tools,
-                        tool_choice="auto"
                     )
                 except Exception as e:
                     logger.error(f"Caught Exception: {e}")
@@ -208,43 +202,41 @@ def get_ai_assistant_response(request_product_id, question):
                     return ai_assistant_response
 
         # otherwise, continue processing the request as normal
-        client = OpenAI(
+        client = anthropic.Anthropic(
             base_url=f"{llm_base_url}",
-            # The OpenAI API requires an api_key to be present, but
-            # our LLM doesn't use it
             api_key=f"{llm_api_key}"
         )
 
         user_prompt = f"Answer the following question about product ID:{request_product_id}: {question}"
         messages = [
-           {"role": "system", "content": "You are a helpful assistant that answers related to a specific product. Use tools as needed to fetch the product reviews and product information. Keep the response brief with no more than 1-2 sentences. If you don't know the answer, just say you don't know."},
            {"role": "user", "content": user_prompt}
         ]
 
         # use the LLM to summarize the product reviews
-        initial_response = client.chat.completions.create(
+        initial_response = client.messages.create(
             model=llm_model,
+            max_tokens=1024,
+            system=system_prompt,
             messages=messages,
             tools=tools,
-            tool_choice="auto"
         )
 
-        response_message = initial_response.choices[0].message
-        tool_calls = response_message.tool_calls
+        logger.info(f"Response message: {initial_response}")
 
-        logger.info(f"Response message: {response_message}")
+        # Check if the model wants to call a tool (stop_reason == "tool_use")
+        tool_use_blocks = [block for block in initial_response.content if block.type == "tool_use"]
 
-        # Check if the model wants to call a tool
-        if tool_calls:
-            logger.info(f"Model wants to call {len(tool_calls)} tool(s)")
+        if tool_use_blocks:
+            logger.info(f"Model wants to call {len(tool_use_blocks)} tool(s)")
 
-            # Append the assistant's message with tool calls
-            messages.append(response_message)
+            # Append the assistant's response
+            messages.append({"role": "assistant", "content": initial_response.content})
 
-            # Process all tool calls
-            for tool_call in tool_calls:
-                function_name = tool_call.function.name
-                function_args = json.loads(tool_call.function.arguments)
+            # Process all tool calls and build tool results
+            tool_results = []
+            for tool_use in tool_use_blocks:
+                function_name = tool_use.name
+                function_args = tool_use.input
 
                 logger.info(f"Processing tool call: '{function_name}' with arguments: {function_args}")
 
@@ -263,15 +255,17 @@ def get_ai_assistant_response(request_product_id, question):
                 else:
                     raise Exception(f'Received unexpected tool call request: {function_name}')
 
-                # Append the tool response
-                messages.append(
+                # Collect tool result
+                tool_results.append(
                     {
-                        "tool_call_id": tool_call.id,
-                        "role": "tool",
-                        "name": function_name,
+                        "type": "tool_result",
+                        "tool_use_id": tool_use.id,
                         "content": function_response,
                     }
                 )
+
+            # Append all tool results as a single user message
+            messages.append({"role": "user", "content": tool_results})
 
             llm_inaccurate_response = check_feature_flag("llmInaccurateResponse")
             logger.info(f"llmInaccurateResponse feature flag: {llm_inaccurate_response}")
@@ -296,20 +290,25 @@ def get_ai_assistant_response(request_product_id, question):
 
             logger.info(f"Invoking the LLM with the following messages: '{messages}'")
 
-            final_response = client.chat.completions.create(
+            final_response = client.messages.create(
                 model=llm_model,
-                messages=messages
+                max_tokens=1024,
+                system=system_prompt,
+                messages=messages,
             )
 
-            result = final_response.choices[0].message.content
+            result = final_response.content[0].text
 
             ai_assistant_response.response = result
 
             logger.info(f"Returning an AI assistant response: '{result}'")
 
         else:
-            logger.info(f"Returning an AI assistant response: '{response_message}'")
-            ai_assistant_response.response = response_message.content
+            # No tool use — extract text response directly
+            text_blocks = [block.text for block in initial_response.content if block.type == "text"]
+            response_text = " ".join(text_blocks)
+            logger.info(f"Returning an AI assistant response: '{response_text}'")
+            ai_assistant_response.response = response_text
 
         # Collect metrics for this service
         product_review_svc_metrics["app_ai_assistant_counter"].add(1, {'product.id': request_product_id})
@@ -376,7 +375,7 @@ if __name__ == "__main__":
     llm_port = must_map_env('LLM_PORT')
     llm_mock_url = f"http://{llm_host}:{llm_port}/v1"
     llm_base_url = must_map_env('LLM_BASE_URL')
-    llm_api_key = must_map_env('OPENAI_API_KEY')
+    llm_api_key = must_map_env('ANTHROPIC_API_KEY')
     llm_model = must_map_env('LLM_MODEL')
 
     catalog_addr = must_map_env('PRODUCT_CATALOG_ADDR')
