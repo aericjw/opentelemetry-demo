@@ -21,7 +21,14 @@ ARG DEBIAN_VERSION=bullseye-20251117-slim
 ARG BUILDER_IMAGE="docker.io/hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
 ARG RUNNER_IMAGE="docker.io/debian:${DEBIAN_VERSION}"
 
-FROM ${BUILDER_IMAGE} AS builder
+# Provides the ERTS binaries for the TARGET platform (e.g. linux/amd64).
+# No --platform override, so BuildKit resolves this to the target architecture.
+# Contains no RUN commands so no Erlang code ever executes under QEMU emulation.
+FROM ${BUILDER_IMAGE} AS erts-provider
+
+# Builder runs on the BUILD platform (e.g. linux/arm64 on Apple Silicon),
+# avoiding the QEMU + OTP 26+ prim_tty NIF incompatibility entirely.
+FROM --platform=$BUILDPLATFORM ${BUILDER_IMAGE} AS builder
 
 # install build dependencies
 RUN apt-get update \
@@ -65,6 +72,17 @@ RUN mix compile
 
 COPY ./src/flagd-ui/rel rel
 RUN mix release
+
+# mix release bundled the ERTS from the builder (BUILDPLATFORM, e.g. arm64).
+# Replace it with the target-platform ERTS from erts-provider so the release
+# runs correctly on the target machine (e.g. amd64 AKS node).
+# Both stages use the same OTP version, so the erts-{VERSION} directory name
+# is identical on both architectures — we just swap the binaries inside it.
+COPY --from=erts-provider /usr/local/lib/erlang /tmp/target-erlang
+RUN build_erts=$(ls -d /app/_build/${MIX_ENV}/rel/flagd_ui/erts-*) \
+  && target_erts=$(ls -d /tmp/target-erlang/erts-*) \
+  && rm -rf "${build_erts}" \
+  && cp -a "${target_erts}" "$(dirname "${build_erts}")/"
 
 # start a new build stage so that the final image will only contain
 # the compiled release and other runtime necessities
