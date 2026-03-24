@@ -18,7 +18,13 @@ defmodule FlagdUi.MixProject do
           applications: [
             opentelemetry_exporter: :permanent,
             opentelemetry: :temporary
-          ]
+          ],
+          # Do not bundle ERTS or OTP native libraries (.so NIFs) into the
+          # release. The Dockerfile supplies the correct target-platform OTP
+          # at runtime via the erts-provider stage, so bundling is unnecessary
+          # and would include the wrong architecture's binaries when
+          # cross-compiling (e.g. arm64 builder -> amd64 target).
+          include_erts: false
         ]
       ]
     ]

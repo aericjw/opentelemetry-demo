@@ -73,17 +73,6 @@ RUN mix compile
 COPY ./src/flagd-ui/rel rel
 RUN mix release
 
-# mix release bundled the ERTS from the builder (BUILDPLATFORM, e.g. arm64).
-# Replace it with the target-platform ERTS from erts-provider so the release
-# runs correctly on the target machine (e.g. amd64 AKS node).
-# Both stages use the same OTP version, so the erts-{VERSION} directory name
-# is identical on both architectures — we just swap the binaries inside it.
-COPY --from=erts-provider /usr/local/lib/erlang /tmp/target-erlang
-RUN build_erts=$(ls -d /app/_build/${MIX_ENV}/rel/flagd_ui/erts-*) \
-  && target_erts=$(ls -d /tmp/target-erlang/erts-*) \
-  && rm -rf "${build_erts}" \
-  && cp -a "${target_erts}" "$(dirname "${build_erts}")/"
-
 # start a new build stage so that the final image will only contain
 # the compiled release and other runtime necessities
 FROM ${RUNNER_IMAGE} AS final
@@ -91,6 +80,12 @@ FROM ${RUNNER_IMAGE} AS final
 RUN apt-get update \
   && apt-get install -y --no-install-recommends libstdc++6 openssl libncurses5 locales ca-certificates \
   && rm -rf /var/lib/apt/lists/*
+
+# Copy the full target-platform OTP runtime (ERTS + all OTP lib .so NIFs)
+# from erts-provider. Because mix release uses include_erts: false, the
+# release contains only BEAM bytecode and uses this system Erlang at runtime.
+COPY --from=erts-provider /usr/local/lib/erlang /usr/local/lib/erlang
+RUN ln -sf /usr/local/lib/erlang/bin/erl /usr/local/bin/erl
 
 # Set the locale
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen \

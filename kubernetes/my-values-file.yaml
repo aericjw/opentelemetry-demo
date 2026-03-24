@@ -1,7 +1,8 @@
 default:
   image:
     pullPolicy: Always
-  repository: aericjw/opentelemetry-demo
+    tag: latest
+    repository: aericjw/opentelemetry-demo
 
 components:
   accounting:
@@ -106,6 +107,8 @@ components:
     envOverrides:
     - name: LLM_MODEL
       value: claude-sonnet-4-6
+    - name: LLM_BASE_URL
+      value: "https://api.anthropic.com"
     - name: ANTHROPIC_API_KEY
       valueFrom:
         secretKeyRef:
