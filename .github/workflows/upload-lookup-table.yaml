@@ -82,9 +82,12 @@ jobs:
           DT_OAUTH_CLIENT_ID: ${{ secrets.DT_OAUTH_CLIENT_ID }}
           DT_OAUTH_CLIENT_SECRET: ${{ secrets.DT_OAUTH_CLIENT_SECRET }}
         run: |
-          RESPONSE=$(curl \
+          TOKEN_RESP=/tmp/dt_token.json
+          
+          HTTP_STATUS=$(curl \
             --silent \
-            --fail-with-body \
+            --output "${TOKEN_RESP}" \
+            --write-out "%{http_code}" \
             --request POST \
             --url "https://sso.dynatrace.com/sso/oauth2/token" \
             --header "Content-Type: application/x-www-form-urlencoded" \
@@ -92,18 +95,25 @@ jobs:
             --data-urlencode "client_id=${DT_OAUTH_CLIENT_ID}" \
             --data-urlencode "client_secret=${DT_OAUTH_CLIENT_SECRET}" \
             --data-urlencode "scope=storage:lookup-tables:read storage:lookup-tables:write")
-
-          TOKEN=$(echo "${RESPONSE}" | jq -r '.access_token // empty')
-
-          if [ -z "${TOKEN}" ]; then
-            echo "::error::Failed to obtain access token."
-            echo "Response: ${RESPONSE}"
+          
+          echo "Token endpoint HTTP status: ${HTTP_STATUS}"
+          
+          if [ "${HTTP_STATUS}" -lt 200 ] || [ "${HTTP_STATUS}" -ge 300 ]; then
+            echo "::error::Failed to obtain access token (HTTP ${HTTP_STATUS})."
+            cat "${TOKEN_RESP}"
             exit 1
           fi
-
+          
+          TOKEN=$(jq -r '.access_token // empty' < "${TOKEN_RESP}")
+          
+          if [ -z "${TOKEN}" ]; then
+            echo "::error::Token response did not contain access_token."
+            cat "${TOKEN_RESP}"
+            exit 1
+          fi
+          
           echo "::add-mask::${TOKEN}"
           echo "token=${TOKEN}" >> "${GITHUB_OUTPUT}"
-          echo "Token obtained successfully."
 
       - name: Build request JSON and upload lookup table
         env:
