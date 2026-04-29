@@ -3,15 +3,60 @@ name: Upload Dynatrace Lookup Table
 on:
   workflow_dispatch:
     inputs:
-      table_name:
-        description: "Lookup table name (must match the target table ID in Dynatrace)"
+      grail_file_path:
+        description: "Grail file path (must start with /lookups, e.g. /lookups/mydata)"
         required: true
         type: string
-      file_path:
-        description: "Repo-relative path to the CSV lookup table file"
+      repo_file_path:
+        description: "Repo-relative path to the lookup data file"
         required: true
         default: "lookups/table.csv"
         type: string
+      parse_pattern:
+        description: "DPL pattern to parse uploaded data (e.g. LD:id ',' LD:value)"
+        required: true
+        type: string
+      lookup_field:
+        description: "Field name whose value uniquely identifies a record"
+        required: true
+        type: string
+      overwrite:
+        description: "Overwrite the file if it already exists"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      display_name:
+        description: "Optional display name for the file (max 500 chars)"
+        required: false
+        type: string
+      description:
+        description: "Optional description for the file (max 500 chars)"
+        required: false
+        type: string
+      skipped_records:
+        description: "Number of initial records to discard (e.g. to skip header rows). Default: 0"
+        required: false
+        default: "0"
+        type: string
+      timezone:
+        description: "Timezone for parsing time/date fields (IANA TZDB, e.g. UTC)"
+        required: false
+        type: string
+      locale:
+        description: "Locale for parsing day/month names (e.g. en_US)"
+        required: false
+        type: string
+      auto_flatten:
+        description: "Extract nested fields to root level when DPL pattern yields a single record-type field"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
 
 # Required repository secrets:
 #   DT_OAUTH_CLIENT_ID     — OAuth client ID from Dynatrace account management
@@ -19,8 +64,8 @@ on:
 #   DT_ENVIRONMENT_URL     — e.g. https://<env-id>.apps.dynatrace.com (no trailing slash)
 #
 # OAuth client must be granted the following scopes:
-#   storage:files:read
-#   storage:files:write
+#   storage:lookup-tables:read
+#   storage:lookup-tables:write
 
 jobs:
   upload-lookup-table:
@@ -46,7 +91,7 @@ jobs:
             --data-urlencode "grant_type=client_credentials" \
             --data-urlencode "client_id=${DT_OAUTH_CLIENT_ID}" \
             --data-urlencode "client_secret=${DT_OAUTH_CLIENT_SECRET}" \
-            --data-urlencode "scope=storage:files:read storage:files:write")
+            --data-urlencode "scope=storage:lookup-tables:read storage:lookup-tables:write")
 
           TOKEN=$(echo "${RESPONSE}" | jq -r '.access_token // empty')
 
@@ -60,30 +105,58 @@ jobs:
           echo "token=${TOKEN}" >> "${GITHUB_OUTPUT}"
           echo "Token obtained successfully."
 
-      - name: Upload lookup table
+      - name: Build request JSON and upload lookup table
         env:
           DT_ENVIRONMENT_URL: ${{ secrets.DT_ENVIRONMENT_URL }}
           BEARER_TOKEN: ${{ steps.auth.outputs.token }}
         run: |
-          TABLE_NAME="${{ inputs.table_name }}"
-          FILE_PATH="${{ inputs.file_path }}"
+          REPO_FILE="${{ inputs.repo_file_path }}"
 
-          if [ ! -f "${FILE_PATH}" ]; then
-            echo "::error::File not found: ${FILE_PATH}"
+          if [ ! -f "${REPO_FILE}" ]; then
+            echo "::error::File not found: ${REPO_FILE}"
             exit 1
           fi
 
-          echo "Uploading '${FILE_PATH}' as lookup table '${TABLE_NAME}'..."
+          # Build required fields
+          REQUEST_JSON=$(jq -n \
+            --arg filePath "${{ inputs.grail_file_path }}" \
+            --arg parsePattern "${{ inputs.parse_pattern }}" \
+            --arg lookupField "${{ inputs.lookup_field }}" \
+            --argjson overwrite "${{ inputs.overwrite }}" \
+            --argjson skippedRecords "${{ inputs.skipped_records }}" \
+            --argjson autoFlatten "${{ inputs.auto_flatten }}" \
+            '{
+              filePath: $filePath,
+              parsePattern: $parsePattern,
+              lookupField: $lookupField,
+              overwrite: $overwrite,
+              skippedRecords: $skippedRecords,
+              autoFlatten: $autoFlatten
+            }')
+
+          # Append optional fields only when provided
+          DISPLAY_NAME="${{ inputs.display_name }}"
+          DESCRIPTION="${{ inputs.description }}"
+          TIMEZONE="${{ inputs.timezone }}"
+          LOCALE="${{ inputs.locale }}"
+
+          [ -n "${DISPLAY_NAME}" ] && REQUEST_JSON=$(echo "${REQUEST_JSON}" | jq --arg v "${DISPLAY_NAME}" '. + {displayName: $v}')
+          [ -n "${DESCRIPTION}" ]  && REQUEST_JSON=$(echo "${REQUEST_JSON}" | jq --arg v "${DESCRIPTION}"  '. + {description: $v}')
+          [ -n "${TIMEZONE}" ]     && REQUEST_JSON=$(echo "${REQUEST_JSON}" | jq --arg v "${TIMEZONE}"     '. + {timezone: $v}')
+          [ -n "${LOCALE}" ]       && REQUEST_JSON=$(echo "${REQUEST_JSON}" | jq --arg v "${LOCALE}"       '. + {locale: $v}')
+
+          echo "Request parameters: ${REQUEST_JSON}"
+          echo "Uploading '${REPO_FILE}' to Grail path '${{ inputs.grail_file_path }}'..."
 
           HTTP_STATUS=$(curl \
             --silent \
             --output /tmp/dt_response.json \
             --write-out "%{http_code}" \
-            --request PUT \
-            --url "${DT_ENVIRONMENT_URL}/platform/storage/lookup/v1/tables/${TABLE_NAME}" \
+            --request POST \
+            --url "${DT_ENVIRONMENT_URL}/platform/storage/lookup/v1/tables" \
             --header "Authorization: Bearer ${BEARER_TOKEN}" \
-            --header "Content-Type: text/csv" \
-            --data-binary "@${FILE_PATH}")
+            --form "request=${REQUEST_JSON};type=application/json" \
+            --form "content=@${REPO_FILE};type=text/plain")
 
           echo "HTTP status: ${HTTP_STATUS}"
 
@@ -93,5 +166,5 @@ jobs:
             exit 1
           fi
 
-          echo "Lookup table '${TABLE_NAME}' uploaded successfully."
+          echo "Lookup table uploaded successfully to '${{ inputs.grail_file_path }}'."
           cat /tmp/dt_response.json
