@@ -1,0 +1,16 @@
+serviceName,language,team,tier,component
+accountingservice,Go,finance,backend,accounting
+adservice,Java,marketing,backend,ads
+cartservice,C#,platform,backend,cart
+checkoutservice,Go,platform,backend,checkout
+currencyservice,C++,platform,backend,currency
+emailservice,Ruby,platform,backend,notifications
+frauddetectionservice,Kotlin,risk,backend,fraud
+frontend,TypeScript,platform,frontend,ui
+frontendproxy,Envoy,platform,frontend,proxy
+loadgenerator,Python,platform,tooling,load
+paymentservice,JavaScript,finance,backend,payments
+productcatalogservice,Go,catalog,backend,catalog
+quoteservice,PHP,fulfillment,backend,quotes
+recommendationservice,Python,catalog,backend,recommendations
+shippingservice,Rust,fulfillment,backend,shipping
