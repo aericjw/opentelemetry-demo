@@ -94,7 +94,7 @@ jobs:
             --data-urlencode "grant_type=client_credentials" \
             --data-urlencode "client_id=${DT_OAUTH_CLIENT_ID}" \
             --data-urlencode "client_secret=${DT_OAUTH_CLIENT_SECRET}" \
-            --data-urlencode "scope=storage:lookup-tables:read storage:lookup-tables:write")
+            --data-urlencode "scope=storage:files:read storage:files:write")
           
           echo "Token endpoint HTTP status: ${HTTP_STATUS}"
           
