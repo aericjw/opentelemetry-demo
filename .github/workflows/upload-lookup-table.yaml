@@ -153,7 +153,7 @@ jobs:
             --output /tmp/dt_response.json \
             --write-out "%{http_code}" \
             --request POST \
-            --url "${DT_ENVIRONMENT_URL}/platform/storage/lookup/v1/tables" \
+            --url "${DT_ENVIRONMENT_URL}/platform/storage/resource-store/v1/files/tabular/lookup:upload" \
             --header "Authorization: Bearer ${BEARER_TOKEN}" \
             --form "request=${REQUEST_JSON};type=application/json" \
             --form "content=@${REPO_FILE};type=text/plain")
