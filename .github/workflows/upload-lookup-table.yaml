@@ -89,7 +89,7 @@ jobs:
             --output "${TOKEN_RESP}" \
             --write-out "%{http_code}" \
             --request POST \
-            --url "https://sso.dynatrace.com/sso/oauth2/token" \
+            --url "https://sso-sprint.dynatracelabs.com/sso/oauth2/token" \
             --header "Content-Type: application/x-www-form-urlencoded" \
             --data-urlencode "grant_type=client_credentials" \
             --data-urlencode "client_id=${DT_OAUTH_CLIENT_ID}" \
