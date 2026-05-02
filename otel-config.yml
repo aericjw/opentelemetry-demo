@@ -16,7 +16,7 @@ meter_provider:
         exporter:
           otlp_grpc:
             endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT}
-            temporality_preference: ${OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE:-cumulative}
+            temporality_preference: ${OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE:-delta}
 tracer_provider:
   processors:
     - batch:
