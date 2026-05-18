@@ -1,11 +1,19 @@
 
 
+.git
 .github
 docs
 internal
+kubernetes
 src/*/README.md
 src/*/Dockerfile
 src/*/*/Dockerfile
+
+###################################
+# Python virtual environments
+.venv
+**/.venv
+###################################
 
 ###################################
 # currency

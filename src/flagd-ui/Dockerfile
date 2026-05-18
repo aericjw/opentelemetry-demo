@@ -21,7 +21,14 @@ ARG DEBIAN_VERSION=bullseye-20251117-slim
 ARG BUILDER_IMAGE="docker.io/hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
 ARG RUNNER_IMAGE="docker.io/debian:${DEBIAN_VERSION}"
 
-FROM ${BUILDER_IMAGE} AS builder
+# Provides the ERTS binaries for the TARGET platform (e.g. linux/amd64).
+# No --platform override, so BuildKit resolves this to the target architecture.
+# Contains no RUN commands so no Erlang code ever executes under QEMU emulation.
+FROM ${BUILDER_IMAGE} AS erts-provider
+
+# Builder runs on the BUILD platform (e.g. linux/arm64 on Apple Silicon),
+# avoiding the QEMU + OTP 26+ prim_tty NIF incompatibility entirely.
+FROM --platform=$BUILDPLATFORM ${BUILDER_IMAGE} AS builder
 
 # install build dependencies
 RUN apt-get update \
@@ -73,6 +80,12 @@ FROM ${RUNNER_IMAGE} AS final
 RUN apt-get update \
   && apt-get install -y --no-install-recommends libstdc++6 openssl libncurses5 locales ca-certificates \
   && rm -rf /var/lib/apt/lists/*
+
+# Copy the full target-platform OTP runtime (ERTS + all OTP lib .so NIFs)
+# from erts-provider. Because mix release uses include_erts: false, the
+# release contains only BEAM bytecode and uses this system Erlang at runtime.
+COPY --from=erts-provider /usr/local/lib/erlang /usr/local/lib/erlang
+RUN ln -sf /usr/local/lib/erlang/bin/erl /usr/local/bin/erl
 
 # Set the locale
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen \
