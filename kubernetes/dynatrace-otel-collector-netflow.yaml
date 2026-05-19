@@ -1,0 +1,63 @@
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: dynatrace-otel-netflow
+spec:
+  envFrom:
+  - secretRef:
+      name: dynatrace-otelcol-dt-api-credentials
+  env:
+  - name: MY_POD_IP
+    valueFrom:
+      fieldRef:
+        fieldPath: status.podIP
+  - name: CLUSTER_NAME
+    value: "aeric-walls-gke"
+  mode: "daemonset"
+  image: "ghcr.io/dynatrace/dynatrace-otel-collector/dynatrace-otel-collector:0.46.0"
+  resources:
+    limits:
+      memory: 512Mi
+  config:
+    receivers:
+      netflow:
+        hostname: "0.0.0.0"
+        scheme: netflow
+        port: 2055
+        sockets: 2
+        workers: 4
+
+    processors:
+      batch:
+        send_batch_size: 30
+        timeout: 30s
+
+    exporters:
+      otlp_http:
+        endpoint: ${env:DT_ENDPOINT}
+        headers:
+          Authorization: "Api-Token ${env:DT_API_TOKEN}"
+
+    service:
+      pipelines:
+        logs:
+          receivers: [netflow]
+          processors: [batch]
+          exporters: [otlp_http]
+      telemetry:
+        metrics:
+          # metrics verbosity level. Higher verbosity means more metrics.
+          # The dashboard relies on metrics at level detailed.
+          level: detailed
+          # set up OTLP exporter
+          readers:
+            - periodic:
+                interval: 60000
+                exporter:
+                  otlp:
+                    protocol: http/protobuf
+                    temporality_preference: delta
+                    endpoint: "${env:DT_ENDPOINT}/v1/metrics"
+                    headers:
+                      - name: Authorization
+                        value: "Api-Token ${env:DT_API_TOKEN}"

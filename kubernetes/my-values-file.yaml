@@ -3,6 +3,12 @@ default:
     pullPolicy: Always
     tag: latest
     repository: aericjw/opentelemetry-demo
+  schedulingRules:
+    tolerations:
+      - key: "kubernetes.io/arch"
+        operator: "Equal"
+        value: "arm64"
+        effect: "NoSchedule"
 
 components:
   accounting:
@@ -50,6 +56,11 @@ components:
   frontend-proxy:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
+    envOverrides:
+      - name: TELEMETRY_DOCS_HOST
+        value: "telemetry-docs"
+      - name: TELEMETRY_DOCS_PORT
+        value: "8080"
     service:
       type: LoadBalancer
       annotations:
@@ -136,6 +147,11 @@ grafana:
   enabled: false
 opentelemetry-collector:
   enabled: true
+  tolerations:
+    - key: "kubernetes.io/arch"
+      operator: "Equal"
+      value: "arm64"
+      effect: "NoSchedule"
   presets:
       hostMetrics:
         enabled: false
@@ -234,7 +250,7 @@ opentelemetry-collector:
         send_batch_size: 10000
         timeout: 10s
       resourcedetection/aks:
-        detectors: [env, azure, aks, system]
+        detectors: [env, system]
         timeout: 2s
         override: false
     exporters:
