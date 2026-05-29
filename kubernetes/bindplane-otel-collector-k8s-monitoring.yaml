@@ -234,7 +234,7 @@ spec:
               name: setup
       containers:
         - name: opentelemetry-collector
-          image: ghcr.io/observiq/bindplane-agent:1.98.0
+          image: ghcr.io/observiq/bindplane-agent:1.100.0
           imagePullPolicy: IfNotPresent
           securityContext:
             readOnlyRootFilesystem: true

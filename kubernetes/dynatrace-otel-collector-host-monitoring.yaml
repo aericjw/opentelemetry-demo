@@ -91,7 +91,7 @@ spec:
   - name: CLUSTER_NAME
     value: "aeric-walls-gke"
   mode: "daemonset"
-  image: "ghcr.io/dynatrace/dynatrace-otel-collector/dynatrace-otel-collector:0.46.0"
+  image: "ghcr.io/dynatrace/dynatrace-otel-collector/dynatrace-otel-collector:0.48.0"
   resources:
     limits:
       memory: 512Mi
