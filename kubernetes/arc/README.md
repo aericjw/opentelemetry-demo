@@ -4,6 +4,12 @@ Runs the image-build workflow (`.github/workflows/k8s-build-images.yml`) on
 self-hosted runners in this cluster, using Actions Runner Controller (ARC) in
 DinD mode.
 
+> **Prerequisite — privileged pods.** DinD mode runs a **privileged** Docker
+> sidecar in each runner pod. If the `arc-runners` namespace enforces a
+> restricted Pod Security Standard, the runner pods are rejected at admission
+> and builds never start (the `helm install` still appears to succeed). Step 2
+> below labels the namespace to permit privileged pods.
+
 ## 1. Create a GitHub App
 
 In **GitHub → Settings → Developer settings → GitHub Apps → New GitHub App**:
@@ -19,6 +25,10 @@ In **GitHub → Settings → Developer settings → GitHub Apps → New GitHub A
 
 ```bash
 kubectl create namespace arc-runners
+
+# Permit the privileged DinD sidecar (skip if the cluster has no PodSecurity enforcement).
+kubectl label namespace arc-runners \
+  pod-security.kubernetes.io/enforce=privileged --overwrite
 
 kubectl create secret generic arc-github-app \
   --namespace arc-runners \
@@ -54,6 +64,10 @@ The release name `otel-demo-builders` is the `runs-on` label the workflow uses.
 ```bash
 kubectl get pods -n arc-systems          # controller + listener Running
 kubectl get autoscalingrunnerset -n arc-runners
+
+# When a build is queued, ephemeral runner pods appear here. If they are stuck
+# Pending or rejected, check events for a PodSecurity admission denial.
+kubectl get pods -n arc-runners -w
 ```
 
 In the repo: **Settings → Actions → Runners** should list `otel-demo-builders`.
