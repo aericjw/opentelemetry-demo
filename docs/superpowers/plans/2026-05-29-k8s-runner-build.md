@@ -95,12 +95,17 @@ helm template otel-demo-builders \
   oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set \
   --namespace arc-runners \
   -f kubernetes/arc/runner-scale-set-values.yaml \
-  --set githubConfigSecret.github_token=dummy \
+  --set controllerServiceAccount.name=arc-gha-rs-controller \
+  --set controllerServiceAccount.namespace=arc-systems \
   > /tmp/arc-render.yaml 2>/tmp/arc-render.err; echo "exit=$?"
 ```
 Expected: `exit=0`. If Helm reports an unknown/invalid value key, fix `runner-scale-set-values.yaml` to match the chart's schema, then re-run.
 
-Note: the `--set githubConfigSecret.github_token=dummy` only satisfies the chart's render-time validation; the real secret is the App-based `arc-github-app` referenced by name in the values file.
+Note: the `--set controllerServiceAccount.*` flags only bypass the chart's
+render-time auto-discovery of the controller (which isn't installed during a
+dry-run). They are NOT needed for the real `helm install` in the README, because
+the controller is installed first. `githubConfigSecret` is already provided as
+the App-based secret name `arc-github-app` in the values file.
 
 - [ ] **Step 2: Sanity-check the rendered output mentions DinD**
 
