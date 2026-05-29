@@ -1,0 +1,40 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# Helm values for the gha-runner-scale-set chart.
+# Installed as release name "otel-demo-builders" -> this is the `runs-on` label.
+#   helm install otel-demo-builders \
+#     oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set \
+#     --namespace arc-runners --create-namespace \
+#     -f kubernetes/arc/runner-scale-set-values.yaml
+
+# Repository (or org) the runners attach to.
+githubConfigUrl: "https://github.com/aericjw/opentelemetry-demo"
+
+# Kubernetes Secret holding the GitHub App credentials (created in the README).
+githubConfigSecret: arc-github-app
+
+# Scale bounds. minRunners: 0 keeps the cluster idle-cost-free; bump if you
+# want warm runners. maxRunners caps concurrent build pods.
+minRunners: 0
+maxRunners: 3
+
+# DinD container mode: each runner pod gets a privileged docker:dind sidecar,
+# so `docker buildx` works exactly like on GitHub-hosted runners.
+containerMode:
+  type: dind
+
+# Give the runner container enough headroom for multi-arch image builds.
+template:
+  spec:
+    containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:latest
+        command: ["/home/runner/run.sh"]
+        resources:
+          requests:
+            cpu: "2"
+            memory: 4Gi
+          limits:
+            cpu: "4"
+            memory: 8Gi
