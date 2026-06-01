@@ -113,7 +113,7 @@ spec:
       fieldRef:
         fieldPath: metadata.namespace
   - name: CLUSTER_NAME
-    value: "aeric-walls-gke"
+    value: "aeric-walls-aks"
   mode: "daemonset"
   image: "ghcr.io/dynatrace/dynatrace-otel-collector/dynatrace-otel-collector:0.48.0"
   resources:

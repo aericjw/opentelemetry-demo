@@ -1,26 +1,26 @@
 apiVersion: v2
-appVersion: 2.1.3
+appVersion: 2.2.0
 dependencies:
 - condition: opentelemetry-collector.enabled
   name: opentelemetry-collector
   repository: https://open-telemetry.github.io/opentelemetry-helm-charts
-  version: 0.134.0
+  version: 0.153.0
 - condition: jaeger.enabled
   name: jaeger
   repository: https://jaegertracing.github.io/helm-charts
-  version: 3.4.1
+  version: 4.7.0
 - condition: prometheus.enabled
   name: prometheus
   repository: https://prometheus-community.github.io/helm-charts
-  version: 27.39.0
+  version: 29.6.0
 - condition: grafana.enabled
   name: grafana
-  repository: https://grafana.github.io/helm-charts
-  version: 10.1.2
+  repository: https://grafana-community.github.io/helm-charts
+  version: 12.3.0
 - condition: opensearch.enabled
   name: opensearch
   repository: https://opensearch-project.github.io/helm-charts/
-  version: 3.2.1
+  version: 3.6.0
 description: opentelemetry demo helm chart
 home: https://opentelemetry.io/
 icon: https://opentelemetry.io/img/logos/opentelemetry-logo-nav.png
@@ -34,7 +34,7 @@ name: opentelemetry-demo
 sources:
 - https://github.com/open-telemetry/opentelemetry-demo
 type: application
-version: 0.38.6
+version: 0.40.9
 
 ---
 # yaml-language-server: $schema=./values.schema.json
@@ -50,8 +50,6 @@ default:
       value: otel-collector
     - name: OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
       value: cumulative
-    - name: OTEL_RESOURCE_ATTRIBUTES
-      value: 'service.name=$(OTEL_SERVICE_NAME),service.namespace=opentelemetry-demo,service.version={{ .Chart.AppVersion }}'
   # Allows overriding and additions to .Values.default.env
   envOverrides: []
   #  - name: OTEL_K8S_NODE_NAME
@@ -119,6 +117,8 @@ components:
   #     nodeSelector: {}
   #     affinity: {}
   #     tolerations: []
+  ## Pod labels to add to this component
+  #   podLabels: {}
   ## Pod Annotations to add to this component
   #   podAnnotations: {}
   ## Resources for this component
@@ -188,6 +188,7 @@ components:
   #       mountPath: /var/log/nginx
   # # Kubernetes container health check options
   #   livenessProbe: {}
+  #   readinessProbe: {}
   # # Optional init container to run before the pod starts.
   #   initContainers:
   #     - name: <init-container-name>
@@ -209,6 +210,8 @@ components:
     enabled: true
     useDefault:
       env: true
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: otel-demo
     env:
       - name: KAFKA_ADDR
         value: kafka:9092
@@ -232,6 +235,8 @@ components:
       env: true
     service:
       port: 8080
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: otel-demo
     env:
       - name: AD_PORT
         value: "8080"
@@ -253,6 +258,8 @@ components:
       env: true
     service:
       port: 8080
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: otel-demo
     env:
       - name: CART_PORT
         value: "8080"
@@ -280,6 +287,8 @@ components:
       env: true
     service:
       port: 8080
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: otel-demo
     env:
       - name: CHECKOUT_PORT
         value: "8080"
@@ -319,6 +328,8 @@ components:
       env: true
     service:
       port: 8080
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: otel-demo
     env:
       - name: CURRENCY_PORT
         value: "8080"
@@ -326,6 +337,8 @@ components:
         value: http://$(OTEL_COLLECTOR_NAME):4317
       - name: VERSION
         value: "{{ .Chart.AppVersion }}"
+      - name: IPV6_ENABLED
+        value: "false"
     resources:
       limits:
         memory: 20Mi
@@ -336,6 +349,8 @@ components:
       env: true
     service:
       port: 8080
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: otel-demo
     env:
       - name: EMAIL_PORT
         value: "8080"
@@ -355,6 +370,8 @@ components:
     enabled: true
     useDefault:
       env: true
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: otel-demo
     env:
       - name: KAFKA_ADDR
         value: kafka:9092
@@ -382,6 +399,8 @@ components:
       env: true
     service:
       port: 8080
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: otel-demo
     env:
       - name: FRONTEND_PORT
         value: "8080"
@@ -399,6 +418,8 @@ components:
         value: currency:8080
       - name: PRODUCT_CATALOG_ADDR
         value: product-catalog:8080
+      - name: PRODUCT_REVIEWS_ADDR
+        value: product-reviews:3551
       - name: RECOMMENDATION_ADDR
         value: recommendation:8080
       - name: SHIPPING_ADDR
@@ -431,9 +452,18 @@ components:
       env: true
     service:
       port: 8080
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: otel-demo
+      io.opentelemetry.discovery.metrics/enabled: 'true'
+      io.opentelemetry.discovery.metrics/scraper: httpcheck
+      io.opentelemetry.discovery.metrics/config: |
+          targets:
+            - endpoint: "http://`endpoint`"
     env:
       - name: ENVOY_PORT
         value: "8080"
+      - name: ENVOY_ADDR
+        value: "0.0.0.0"
       - name: ENVOY_ADMIN_PORT
         value: "10000"
       - name: FLAGD_HOST
@@ -457,7 +487,7 @@ components:
       - name: IMAGE_PROVIDER_PORT
         value: "8081"
       - name: JAEGER_HOST
-        value: jaeger-query
+        value: jaeger
       - name: JAEGER_UI_PORT
         value: "16686"
       - name: LOCUST_WEB_HOST
@@ -484,6 +514,14 @@ components:
       env: true
     service:
       port: 8081
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: otel-demo
+      io.opentelemetry.discovery.metrics/enabled: 'true'
+      io.opentelemetry.discovery.metrics/scraper: nginx
+      io.opentelemetry.discovery.metrics/config: |
+          endpoint: "http://`endpoint`/status"
+          collection_interval: "10s"
+          timeout: "20s"
     env:
       - name: IMAGE_PROVIDER_PORT
         value: "8081"
@@ -501,6 +539,8 @@ components:
       env: true
     service:
       port: 8089
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: otel-demo
     env:
       - name: LOCUST_WEB_HOST
         value: "0.0.0.0"
@@ -538,6 +578,8 @@ components:
       env: true
     service:
       port: 8080
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: otel-demo
     env:
       - name: PAYMENT_PORT
         value: "8080"
@@ -547,9 +589,11 @@ components:
         value: "8013"
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4317
+      - name: IPV6_ENABLED
+        value: "false"
     resources:
       limits:
-        memory: 120Mi
+        memory: 140Mi
     securityContext:
       runAsUser: 1000  # node
       runAsGroup: 1000
@@ -561,26 +605,67 @@ components:
       env: true
     service:
       port: 8080
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: otel-demo
     env:
       - name: PRODUCT_CATALOG_PORT
         value: "8080"
-      - name: PRODUCT_CATALOG_RELOAD_INTERVAL
-        value: "10"
       - name: FLAGD_HOST
         value: flagd
       - name: FLAGD_PORT
         value: "8013"
-      - name: OTEL_EXPORTER_OTLP_ENDPOINT
-        value: http://$(OTEL_COLLECTOR_NAME):4317
       - name: GOMEMLIMIT
         value: 16MiB
-    mountedConfigMaps:
-      - name: product-catalog-products
-        mountPath: /usr/src/app/products
-        existingConfigMap: product-catalog-products
+      - name: DB_CONNECTION_STRING
+        value: postgres://otelu:otelp@postgresql/otel?sslmode=disable
+      - name: OTEL_SEMCONV_STABILITY_OPT_IN
+        value: database
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
       limits:
         memory: 20Mi
+
+  product-reviews:
+    enabled: true
+    useDefault:
+      env: true
+    service:
+      port: 3551
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: otel-demo
+    env:
+      - name: OPENAI_API_KEY
+        value: dummy
+      - name: LLM_MODEL
+        value: astronomy-llm
+      - name: LLM_HOST
+        value: llm
+      - name: LLM_PORT
+        value: "8000"
+      - name: LLM_BASE_URL
+        value: http://$(LLM_HOST):$(LLM_PORT)/v1
+      - name: PRODUCT_REVIEWS_PORT
+        value: "3551"
+      - name: PRODUCT_CATALOG_ADDR
+        value: product-catalog:8080
+      - name: FLAGD_HOST
+        value: flagd
+      - name: FLAGD_PORT
+        value: "8013"
+      - name: DB_CONNECTION_STRING
+        value: host=postgresql user=otelu password=otelp dbname=otel
+      - name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION
+        value: python
+      - name: OTEL_PYTHON_LOG_CORRELATION
+        value: "true"
+      - name: OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT
+        value: "true"
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4317
+    resources:
+      limits:
+        memory: 100Mi
 
   quote:
     enabled: true
@@ -588,6 +673,8 @@ components:
       env: true
     service:
       port: 8080
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: otel-demo
     env:
       - name: QUOTE_PORT
         value: "8080"
@@ -597,6 +684,8 @@ components:
         value: "true"
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4318
+      - name: IPV6_ENABLED
+        value: "false"
     resources:
       limits:
         memory: 40Mi
@@ -611,6 +700,8 @@ components:
       env: true
     service:
       port: 8080
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: otel-demo
     env:
       - name: RECOMMENDATION_PORT
         value: "8080"
@@ -636,6 +727,8 @@ components:
       env: true
     service:
       port: 8080
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: otel-demo
     env:
       - name: SHIPPING_PORT
         value: "8080"
@@ -643,6 +736,8 @@ components:
         value: http://quote:8080
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4317
+      - name: IPV6_ENABLED
+        value: "false"
     resources:
       limits:
         memory: 20Mi
@@ -651,7 +746,7 @@ components:
     enabled: true
     imageOverride:
       repository: "ghcr.io/open-feature/flagd"
-      tag: "v0.12.8"
+      tag: "v0.12.9"
     useDefault:
       env: true
     replicas: 1
@@ -660,6 +755,8 @@ components:
         value: 8013
       - name: ofrep
         value: 8016
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: otel-demo
     env:
       - name: FLAGD_METRICS_EXPORTER
         value: otel
@@ -730,6 +827,8 @@ components:
         value: 9092
       - name: controller
         value: 9093
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: otel-demo
     env:
       - name: KAFKA_ADVERTISED_LISTENERS
         value: PLAINTEXT://kafka:9092
@@ -745,90 +844,43 @@ components:
         value: 1@kafka:9093
     resources:
       limits:
-        memory: 600Mi
+        memory: 700Mi
     securityContext:
       runAsUser: 1000  # appuser
       runAsGroup: 1000
       runAsNonRoot: true
 
+  llm:
+    enabled: true
+    useDefault:
+      env: true
+    service:
+      port: 8000
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: otel-demo
+    env:
+      - name: FLAGD_HOST
+        value: flagd
+      - name: FLAGD_PORT
+        value: "8013"
+
   postgresql:
     enabled: true
     useDefault:
-      env: true
+      env: false
+    imageOverride:
+      repository: "postgres"
+      tag: "17.6"
     replicas: 1
     service:
       port: 5432
-    env:
-      - name: POSTGRES_USER
-        value: root
-      - name: POSTGRES_PASSWORD
-        value: otel
-      - name: POSTGRES_DB
-        value: otel
-    resources:
-      limits:
-        memory: 100Mi
-
-  valkey-cart:
-    enabled: true
-    useDefault:
-      env: true
-    imageOverride:
-      repository: "valkey/valkey"
-      tag: "8.1.3-alpine"
-    replicas: 1
-    ports:
-      - name: valkey-cart
-        value: 6379
-    resources:
-      limits:
-        memory: 20Mi
-    securityContext:
-      runAsUser: 999  # valkey
-      runAsGroup: 1000
-      runAsNonRoot: true
-
-opentelemetry-collector:
-  enabled: true
-  image:
-    repository: "otel/opentelemetry-collector-contrib"
-  fullnameOverride: otel-collector
-  mode: deployment
-  presets:
-    kubernetesAttributes:
-      enabled: true
-  resources:
-    limits:
-      memory: 200Mi
-  service:
-    type: ClusterIP
-  ports:
-    metrics:
-      enabled: true
-  podAnnotations:
-    prometheus.io/scrape: "true"
-    opentelemetry_community_demo: "true"
-  config:
-    receivers:
-      otlp:
-        protocols:
-          http:
-            # Since this collector needs to receive data from the web, enable cors for all origins
-            # `allowed_origins` can be refined for your deployment domain
-            cors:
-              allowed_origins:
-                - "http://*"
-                - "https://*"
-      httpcheck/frontend-proxy:
-        targets:
-          - endpoint: http://frontend-proxy:8080
-      nginx:
-        endpoint: http://image-provider:8081/status
-        collection_interval: 10s
-      postgresql:
-        endpoint: "postgresql:5432"
-        username: "root"
-        password: "otel"
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: otel-demo
+      io.opentelemetry.discovery.metrics/enabled: 'true'
+      io.opentelemetry.discovery.metrics/scraper: postgresql
+      io.opentelemetry.discovery.metrics/config: |
+        username: root
+        password: otel
         metrics:
           postgresql.blks_hit:
             enabled: true
@@ -848,22 +900,105 @@ opentelemetry-collector:
             enabled: true
         tls:
           insecure: true
-      redis:
-        endpoint: "valkey-cart:6379"
-        username: "valkey"
-        collection_interval: 10s
+    env:
+      - name: POSTGRES_USER
+        value: root
+      - name: POSTGRES_PASSWORD
+        value: otel
+      - name: POSTGRES_DB
+        value: otel
+    mountedConfigMaps:
+      - name: postgresql-init
+        mountPath: /docker-entrypoint-initdb.d
+        existingConfigMap: postgresql-init
+    resources:
+      limits:
+        memory: 100Mi
 
-    exporters:
-      ## Create an exporter to Jaeger using the standard `otlp` export format
+  valkey-cart:
+    enabled: true
+    useDefault:
+      env: false
+    imageOverride:
+      repository: "valkey/valkey"
+      tag: "9.0.1-alpine3.23"
+    replicas: 1
+    ports:
+      - name: valkey-cart
+        value: 6379
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: otel-demo
+      io.opentelemetry.discovery.metrics/enabled: 'true'
+      io.opentelemetry.discovery.metrics/scraper: redis
+      io.opentelemetry.discovery.metrics/config: |
+        username: valkey
+        collection_interval: 10s
+    resources:
+      limits:
+        memory: 20Mi
+    securityContext:
+      runAsUser: 999  # valkey
+      runAsGroup: 1000
+      runAsNonRoot: true
+
+opentelemetry-collector:
+  enabled: true
+  image:
+    repository: "otel/opentelemetry-collector-contrib"
+  fullnameOverride: otel-collector
+  mode: daemonset
+  presets:
+    hostMetrics:
+      enabled: true
+    kubernetesAttributes:
+      enabled: true
+    kubeletMetrics:
+      enabled: true
+    clusterMetrics:
+      enabled: true
+    annotationDiscovery:
+      metrics:
+        enabled: true
+  resources:
+    limits:
+      memory: 200Mi
+  service:
+    enabled: true
+  ports:
+    metrics:
+      enabled: true
+  config:
+    receivers:
       otlp:
-        endpoint: jaeger-collector:4317
+        protocols:
+          http:
+            # Since this collector needs to receive data from the web, enable cors for all origins
+            # `allowed_origins` can be refined for your deployment domain
+            cors:
+              allowed_origins:
+                - "http://*"
+                - "https://*"
+      kafkametrics:
+        scrapers:
+          - brokers
+          - topics
+          - consumers
+        brokers:
+          - kafka:9092
+        collection_interval: 10s
+    exporters:
+      otlp/jaeger:
+        endpoint: jaeger:4317
         tls:
           insecure: true
-      # Create an exporter to Prometheus (metrics)
+        sending_queue:
+          batch: {}
       otlphttp/prometheus:
         endpoint: http://prometheus:9090/api/v1/otlp
         tls:
           insecure: true
+        sending_queue:
+          batch: {}
       opensearch:
         logs_index: otel-logs
         logs_index_time_format: "yyyy-MM-dd"
@@ -879,17 +1014,28 @@ opentelemetry-collector:
         spike_limit_percentage: 25
       resourcedetection:
         detectors: [env, system]
-      # This processor is used to help limit high cardinality on next.js span names
-      # When this PR is merged (and released) we can remove this transform processor
-      # https://github.com/vercel/next.js/pull/64852
       transform:
         error_mode: ignore
         trace_statements:
+          # Sanitize spans to prevent span metrics cardinality explosion
+          # caused by non-compliant high cardinality span names:
+          # 1. Define missing http.route on key HTTP operations for meaningful operation names
+          # 2. Then normalize span names; http server spans lacking http.route default to operations "GET", "POST", etc.
+          - context: span
+            # FRONTEND SERVICE
+            conditions:
+              - span.kind == SPAN_KIND_SERVER and resource.attributes["service.name"] == "frontend" and span.attributes["http.route"] == nil
+            statements:
+              # Workaround for Next.js high cardinality span name issue: https://github.com/vercel/next.js/issues/54694
+              - set(span.attributes["http.route"], "/api/cart") where IsMatch(span.attributes["http.target"], "\\/api\\/cart")  # e.g. # /api/cart
+              - set(span.attributes["http.route"], "/api/checkout") where IsMatch(span.attributes["http.target"], "\\/api\\/checkout")  # e.g. # /api/checkout
+              - set(span.attributes["http.route"], "/api/products/{productId}") where IsMatch(span.attributes["http.target"], "\\/api\\/products\\/.*")  # e.g. /api/products/1YMWWN1N4O
+              - set(span.attributes["http.route"], "/api/recommendations") where IsMatch(span.attributes["http.target"], "\\/api\\/recommendations")  # e.g. # /api/recommendations?productIds=...
+              - set(span.attributes["http.route"], "/api/data") where IsMatch(span.attributes["http.target"], "\\/api\\/data.*")  # e.g. # " /api/data?contextKeys=telescopes" or /api/data/?contextKeys=cameras
           - context: span
             statements:
-              # could be removed when https://github.com/vercel/next.js/pull/64852 is fixed upstream
-              - replace_pattern(name, "\\?.*", "")
-              - replace_match(name, "GET /api/products/*", "GET /api/products/{productId}")
+              # SANITIZE ALL SPAN NAMES TO PREVENT CARDINALITY EXPLOSION
+              - set_semconv_span_name("1.37.0", "unsanitized_span_name")
       resource:
         attributes:
         - key: service.instance.id
@@ -903,9 +1049,9 @@ opentelemetry-collector:
       pipelines:
         traces:
           processors: [memory_limiter, resourcedetection, resource, transform, batch]
-          exporters: [otlp, debug, spanmetrics]
+          exporters: [otlp/jaeger, debug, spanmetrics]
         metrics:
-          receivers: [httpcheck/frontend-proxy, nginx, otlp, postgresql, redis, spanmetrics]
+          receivers: [otlp, kafkametrics, spanmetrics]
           processors: [memory_limiter, resourcedetection, resource, batch]
           exporters: [otlphttp/prometheus, debug]
         logs:
@@ -921,39 +1067,89 @@ opentelemetry-collector:
                 exporter:
                   otlp:
                     protocol: http/protobuf
-                    endpoint: otel-collector:4318
+                    endpoint: http://otel-collector:4318
+                    insecure: true
 
 jaeger:
   enabled: true
   fullnameOverride: jaeger
-  provisionDataStore:
-    cassandra: false
-  allInOne:
-    enabled: true
-    args:
-      - "--memory.max-traces=5000"
-      - "--query.base-path=/jaeger/ui"
-      - "--prometheus.server-url=http://prometheus:9090"
-      - "--prometheus.query.normalize-calls=true"
-      - "--prometheus.query.normalize-duration=true"
+  jaeger:
+    storage:
+      type: memory
     extraEnv:
-      - name: METRICS_STORAGE_TYPE
-        value: prometheus
-      - name: COLLECTOR_OTLP_GRPC_HOST_PORT
-        value: 0.0.0.0:4317
-      - name: COLLECTOR_OTLP_HTTP_HOST_PORT
-        value: 0.0.0.0:4318
+      - name: MEMORY_MAX_TRACES
+        value: "25000"
+      - name: PROMETHEUS_ADDR
+        value: prometheus:9090
+      - name: OTEL_COLLECTOR_HOST
+        value: otel-collector
+      - name: OTEL_COLLECTOR_PORT_HTTP
+        value: "4318"
+      - name: JAEGER_HOST
+        value: "0.0.0.0"
+      - name: JAEGER_GRPC_PORT
+        value: "4317"
     resources:
       limits:
-        memory: 400Mi
-  storage:
-    type: memory
-  agent:
-    enabled: false
-  collector:
-    enabled: false
-  query:
-    enabled: false
+        memory: 600Mi
+  userconfig:
+    service:
+      extensions: [jaeger_storage, jaeger_query, healthcheckv2]
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [jaeger_storage_exporter]
+      telemetry:
+        resource:
+          service.name: jaeger
+        metrics:
+          level: detailed
+          readers:
+            - periodic:
+                interval: 10000
+                timeout: 5000
+                exporter:
+                  otlp:
+                    protocol: http/protobuf
+                    endpoint: http://${env:OTEL_COLLECTOR_HOST}:${env:OTEL_COLLECTOR_PORT_HTTP}
+                    insecure: true
+        logs:
+          level: info
+    extensions:
+      healthcheckv2:
+        use_v2: true
+        http:
+          endpoint: 0.0.0.0:13133
+      jaeger_query:
+        storage:
+          traces: memory_backend
+          metrics: metrics_backend
+        base_path: /jaeger/ui
+      jaeger_storage:
+        backends:
+          memory_backend:
+            memory:
+              max_traces: ${env:MEMORY_MAX_TRACES}
+        metric_backends:
+          metrics_backend:
+            prometheus:
+              endpoint: "http://${env:PROMETHEUS_ADDR}"
+              normalize_calls: true
+              normalize_duration: true
+
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: ${env:JAEGER_HOST}:${env:JAEGER_GRPC_PORT}
+
+    processors:
+      batch: {}
+
+    exporters:
+      jaeger_storage_exporter:
+        trace_storage: memory_backend
 
 prometheus:
   enabled: true
@@ -973,6 +1169,7 @@ prometheus:
     extraFlags:
       - "enable-feature=exemplar-storage"
       - "web.enable-otlp-receiver"
+    retention: 7d
     tsdb:
       out_of_order_time_window: 30m
     otlp:
@@ -1016,7 +1213,7 @@ prometheus:
       servicePort: 9090
     resources:
       limits:
-        memory: 300Mi
+        memory: 400Mi
 
 grafana:
   enabled: true
@@ -1045,11 +1242,11 @@ grafana:
       enabled: true
     resources:
       limits:
-        cpu: 100m
-        memory: 100Mi
+        cpu: 150m
+        memory: 256Mi
   resources:
     limits:
-      memory: 150Mi
+      memory: 300Mi
 
 opensearch:
   enabled: true
@@ -1074,23 +1271,14 @@ opensearch:
 ---
 # OpenTelemetry Demo Helm Chart
 
-The helm chart installs [OpenTelemetry Demo](https://github.com/open-telemetry/opentelemetry-demo)
-in kubernetes cluster.
-
-> [!NOTE]
-> The [Jaeger Service Performance Monitoring (SPM)](https://www.jaegertracing.io/docs/1.73/deployment/spm/)
-> is currently **not working** in the OTel Demo.
->
-> This happens because the OTel Demo Helm chart depends on the Jaeger Helm chart, and the latest
-> published Jaeger Helm chart is incompatible with the new span metric names.
->
-> The issue has already been fixed in newer Jaeger versions, but Helm charts for those versions
-> are not yet available.
+The helm chart installs the
+[OpenTelemetry Demo](https://github.com/open-telemetry/opentelemetry-demo) in a
+Kubernetes cluster.
 
 ## Prerequisites
 
 - Kubernetes 1.24+
-- Helm 3.14+
+- Helm 4.0+
 
 ## Installing the Chart
 
@@ -1100,7 +1288,8 @@ Add OpenTelemetry Helm repository:
 helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
 ```
 
-To install the chart with the release name my-otel-demo, run the following command:
+To install the chart with the release name my-otel-demo, run the following
+command:
 
 ```console
 helm install my-otel-demo open-telemetry/opentelemetry-demo
@@ -1132,7 +1321,8 @@ Installing the chart on OpenShift requires the following additional steps:
     oc adm policy add-scc-to-user anyuid -z opentelemetry-demo
     ```
 
-4. Add `view` role to the service account to allow Prometheus seeing the services pods:
+4. Add `view` role to the service account to allow Prometheus seeing the
+services pods:
 
     ```console
     oc adm policy add-role-to-user view -z opentelemetry-demo
@@ -1199,55 +1389,56 @@ component.
 > The following parameters require a `components.[NAME].` prefix where `[NAME]`
 > is the name of the demo component
 
-| Parameter                              | Description                                                                                                | Default                                                       |
-|----------------------------------------|------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------|
-| `enabled`                              | Is this component enabled                                                                                  | `true`                                                        |
-| `useDefault.env`                       | Use the default environment variables in this component                                                    | `true`                                                        |
-| `imageOverride.repository`             | Name of image for this component                                                                           | Defaults to the overall default image repository              |
-| `imageOverride.tag`                    | Tag of the image for this component                                                                        | Defaults to the overall default image tag                     |
-| `imageOverride.pullPolicy`             | Image pull policy for this component                                                                       | `IfNotPresent`                                                |
-| `imageOverride.pullSecrets`            | Image pull secrets for this component                                                                      | `[]`                                                          |
-| `service.type`                         | Service type used for this component                                                                       | `ClusterIP`                                                   |
-| `service.port`                         | Service port used for this component                                                                       | `nil`                                                         |
-| `service.nodePort`                     | Service node port used for this component                                                                  | `nil`                                                         |
-| `service.annotations`                  | Annotations to add to the component's service                                                              | `{}`                                                          |
-| `ports`                                | Array of ports to open for deployment and service of this component                                        | `[]`                                                          |
-| `env`                                  | Array of environment variables added to this component                                                     | Each component will have its own set of environment variables |
-| `envOverrides`                         | Used to override individual environment variables without re-specifying the entire array                   | `[]`                                                          |
-| `replicas`                             | Number of replicas for this component                                                                      | `1` for kafka, and redis ; `nil` otherwise       |
-| `resources`                            | CPU/Memory resource requests/limits                                                                        | Each component will have a default memory limit set           |
-| `schedulingRules.nodeSelector`         | Node labels for pod assignment                                                                             | `{}`                                                          |
-| `schedulingRules.affinity`             | Man of node/pod affinities                                                                                 | `{}`                                                          |
-| `schedulingRules.tolerations`          | Tolerations for pod assignment                                                                             | `[]`                                                          |
-| `securityContext`                      | Container security context to define user ID (UID), group ID (GID) and other security policies             | `{}`                                                          |
-| `podSecurityContext`                   | Pod security context to define user ID (UID), group ID (GID) and other security policies                   | `{}`                                                          |
-| `podAnnotations`                       | Pod annotations for this component                                                                         | `{}`                                                          |
-| `ingress.enabled`                      | Enable the creation of Ingress rules                                                                       | `false`                                                       |
-| `ingress.annotations`                  | Annotations to add to the ingress rule                                                                     | `{}`                                                          |
-| `ingress.ingressClassName`             | Ingress class to use. If not specified default Ingress class will be used.                                 | `nil`                                                         |
-| `ingress.hosts`                        | Array of Hosts to use for the ingress rule.                                                                | `[]`                                                          |
-| `ingress.hosts[].paths`                | Array of paths / routes to use for the ingress rule host.                                                  | `[]`                                                          |
-| `ingress.hosts[].paths[].path`         | Actual path route to use                                                                                   | `nil`                                                         |
-| `ingress.hosts[].paths[].pathType`     | Path type to use for the given path. Typically this is `Prefix`.                                           | `nil`                                                         |
-| `ingress.hosts[].paths[].port`         | Port to use for the given path                                                                             | `nil`                                                         |
-| `ingress.additionalIngresses`          | Array of additional ingress rules to add. This is handy if you need to differently annotated ingress rules | `[]`                                                          |
-| `ingress.additionalIngresses[].name`   | Each additional ingress rule needs to have a unique name                                                   | `nil`                                                         |
-| `command`                              | Command & arguments to pass to the container being spun up for this service                                | `[]`                                                          |
-| `additionalVolumeMounts`             | Array of Volumes that will be mounted                                                       | `[]`                                                         |
-| `mountedConfigMaps[].name`             | Name of the Volume that will be used for the ConfigMap mount                                               | `nil`                                                         |
-| `mountedConfigMaps[].mountPath`        | Path where the ConfigMap data will be mounted                                                              | `nil`                                                         |
-| `mountedConfigMaps[].subPath`          | SubPath within the mountPath. Used to mount a single file into the path.                                   | `nil`                                                         |
-| `mountedConfigMaps[].existingConfigMap` | Name of the existing ConfigMap to mount                                                                    | `nil`                                                         |
-| `mountedConfigMaps[].data`             | Contents of a ConfigMap. Keys should be the names of the files to be mounted.                              | `{}`                                                          |
-| `mountedEmptyDir[].name`             | Name of the EmptyDir volume that will be used for the volume mount                                                         | `nil`                                                         |
-| `mountedEmptyDir[].mountPath`        | Path where the EmptyDir data will be mounted                                                              | `nil`                                                         |
-| `mountedEmptyDir[].subPath`          | SubPath within the mountPath. Used to mount a single file into the path.                                   | `nil`                                                         |
-| `initContainers`                       | Array of init containers to add to the pod                                                                 | `[]`                                                          |
-| `initContainers[].name`                | Name of the init container                                                                                 | `nil`                                                         |
-| `initContainers[].image`               | Image to use for the init container                                                                        | `nil`                                                         |
-| `initContainers[].command`             | Command to run for the init container                                                                      | `nil`                                                         |
-| `sidecarContainers`                    | Array of sidecar containers to add to the pod                                                              | `[]`                                                          |
-| `additionalVolumes`                    | Array of additional volumes to add to the pod                                                              | `[]`                                                          |
+| Parameter                               | Description                                                                              | Default                                                       |
+|-----------------------------------------|------------------------------------------------------------------------------------------|---------------------------------------------------------------|
+| `enabled`                               | Is this component enabled                                                                | `true`                                                        |
+| `useDefault.env`                        | Use the default environment variables in this component                                  | `true`                                                        |
+| `imageOverride.repository`              | Name of image for this component                                                         | Defaults to the overall default image repository              |
+| `imageOverride.tag`                     | Tag of the image for this component                                                      | Defaults to the overall default image tag                     |
+| `imageOverride.pullPolicy`              | Image pull policy for this component                                                     | `IfNotPresent`                                                |
+| `imageOverride.pullSecrets`             | Image pull secrets for this component                                                    | `[]`                                                          |
+| `service.type`                          | Service type used for this component                                                     | `ClusterIP`                                                   |
+| `service.port`                          | Service port used for this component                                                     | `nil`                                                         |
+| `service.nodePort`                      | Service node port used for this component                                                | `nil`                                                         |
+| `service.annotations`                   | Annotations to add to the component's service                                            | `{}`                                                          |
+| `ports`                                 | Array of ports to open for deployment and service of this component                      | `[]`                                                          |
+| `env`                                   | Array of environment variables added to this component                                   | Each component will have its own set of environment variables |
+| `envOverrides`                          | Used to override individual environment variables without re-specifying the entire array | `[]`                                                          |
+| `replicas`                              | Number of replicas for this component                                                    | `1` for kafka, and redis ; `nil` otherwise                    |
+| `resources`                             | CPU/Memory resource requests/limits                                                      | Each component will have a default memory limit set           |
+| `schedulingRules.nodeSelector`          | Node labels for pod assignment                                                           | `{}`                                                          |
+| `schedulingRules.affinity`              | Man of node/pod affinities                                                               | `{}`                                                          |
+| `schedulingRules.tolerations`           | Tolerations for pod assignment                                                           | `[]`                                                          |
+| `securityContext`                       | Container security context                                                               | `{}`                                                          |
+| `podSecurityContext`                    | Pod security context s                                                                   | `{}`                                                          |
+| `podLabels`                             | Pod labels for this component                                                            | `{}`                                                          |
+| `podAnnotations`                        | Pod annotations for this component                                                       | `{}`                                                          |
+| `ingress.enabled`                       | Enable the creation of Ingress rules                                                     | `false`                                                       |
+| `ingress.annotations`                   | Annotations to add to the ingress rule                                                   | `{}`                                                          |
+| `ingress.ingressClassName`              | Ingress class to use. If not specified default Ingress class will be used.               | `nil`                                                         |
+| `ingress.hosts`                         | Array of Hosts to use for the ingress rule.                                              | `[]`                                                          |
+| `ingress.hosts[].paths`                 | Array of paths / routes to use for the ingress rule host.                                | `[]`                                                          |
+| `ingress.hosts[].paths[].path`          | Actual path route to use                                                                 | `nil`                                                         |
+| `ingress.hosts[].paths[].pathType`      | Path type to use for the given path. Typically this is `Prefix`.                         | `nil`                                                         |
+| `ingress.hosts[].paths[].port`          | Port to use for the given path                                                           | `nil`                                                         |
+| `ingress.additionalIngresses`           | Array of additional ingress rules to add                                                 | `[]`                                                          |
+| `ingress.additionalIngresses[].name`    | Each additional ingress rule needs to have a unique name                                 | `nil`                                                         |
+| `command`                               | Command & arguments to pass to the container being spun up for this service              | `[]`                                                          |
+| `additionalVolumeMounts`                | Array of Volumes that will be mounted                                                    | `[]`                                                          |
+| `mountedConfigMaps[].name`              | Name of the Volume that will be used for the ConfigMap mount                             | `nil`                                                         |
+| `mountedConfigMaps[].mountPath`         | Path where the ConfigMap data will be mounted                                            | `nil`                                                         |
+| `mountedConfigMaps[].subPath`           | SubPath within the mountPath. Used to mount a single file into the path.                 | `nil`                                                         |
+| `mountedConfigMaps[].existingConfigMap` | Name of the existing ConfigMap to mount                                                  | `nil`                                                         |
+| `mountedConfigMaps[].data`              | Contents of a ConfigMap. Keys should be the names of the files to be mounted.            | `{}`                                                          |
+| `mountedEmptyDir[].name`                | Name of the EmptyDir volume that will be used for the volume mount                       | `nil`                                                         |
+| `mountedEmptyDir[].mountPath`           | Path where the EmptyDir data will be mounted                                             | `nil`                                                         |
+| `mountedEmptyDir[].subPath`             | SubPath within the mountPath. Used to mount a single file into the path.                 | `nil`                                                         |
+| `initContainers`                        | Array of init containers to add to the pod                                               | `[]`                                                          |
+| `initContainers[].name`                 | Name of the init container                                                               | `nil`                                                         |
+| `initContainers[].image`                | Image to use for the init container                                                      | `nil`                                                         |
+| `initContainers[].command`              | Command to run for the init container                                                    | `nil`                                                         |
+| `sidecarContainers`                     | Array of sidecar containers to add to the pod                                            | `[]`                                                          |
+| `additionalVolumes`                     | Array of additional volumes to add to the pod                                            | `[]`                                                          |
 
 ### Sub-charts
 
@@ -1268,69 +1459,62 @@ parameters by default. The overriden parameters are specified below.
 > **Note**
 > The following parameters have a `opentelemetry-collector.` prefix.
 
-| Parameter        | Description                                        | Default                                                  |
-|------------------|----------------------------------------------------|----------------------------------------------------------|
-| `enabled`        | Install the OpenTelemetry collector                | `true`                                                   |
-| `nameOverride`   | Name that will be used by the sub-chart release    | `otel-collector`                                                |
-| `mode`           | The Deployment or Daemonset mode                   | `deployment`                                             |
-| `resources`      | CPU/Memory resource requests/limits                | 100Mi memory limit                                       |
-| `service.type`   | Service Type to use                                | `ClusterIP`                                              |
-| `ports`          | Ports to enabled for the collector pod and service | `metrics` is enabled and `prometheus` is defined/enabled |
-| `podAnnotations` | Pod annotations                                    | Annotations leveraged by Prometheus scrape               |
-| `config`         | OpenTelemetry Collector configuration              | Configuration required for demo                          |
+| Parameter      | Description                                     | Default                         |
+|----------------|-------------------------------------------------|---------------------------------|
+| `enabled`      | Install the OpenTelemetry collector             | `true`                          |
+| `nameOverride` | Name that will be used by the sub-chart release | `otel-collector`                |
+| `mode`         | The Deployment or Daemonset mode                | `deployment`                    |
+| `resources`    | CPU/Memory resource requests/limits             | 200Mi memory limit              |
+| `service.type` | Service Type to use                             | `ClusterIP`                     |
+| `config`       | OpenTelemetry Collector configuration           | Configuration required for demo |
 
 #### Jaeger
 
 > **Note**
 > The following parameters have a `jaeger.` prefix.
 
-| Parameter                      | Description                                        | Default                                                               |
-|--------------------------------|----------------------------------------------------|-----------------------------------------------------------------------|
-| `enabled`                      | Install the Jaeger sub-chart                       | `true`                                                                |
-| `provisionDataStore.cassandra` | Provision a cassandra data store                   | `false` (required for AllInOne mode)                                  |
-| `allInOne.enabled`             | Enable All in One In-Memory Configuration          | `true`                                                                |
-| `allInOne.args`                | Command arguments to pass to All in One deployment | `["--memory.max-traces", "10000", "--query.base-path", "/jaeger/ui"]` |
-| `allInOne.resources`           | CPU/Memory resource requests/limits for All in One | 275Mi memory limit                                                    |
-| `storage.type`                 | Storage type to use                                | `none` (required for AllInOne mode)                                   |
-| `agent.enabled`                | Enable Jaeger agent                                | `false` (required for AllInOne mode)                                  |
-| `collector.enabled`            | Enable Jaeger Collector                            | `false` (required for AllInOne mode)                                  |
-| `query.enabled`                | Enable Jaeger Query                                | `false` (required for AllInOne mode)                                  |
+| Parameter             | Description                                               | Default            |
+|-----------------------|-----------------------------------------------------------|--------------------|
+| `enabled`             | Install the Jaeger sub-chart                              | `true`             |
+| `jaeger.storage.type` | Sets storage type fo memory storage                       | `memory`           |
+| `jaeger.extraEnv`     | Additional environment variables referenced in userconfig |                    |
+| `jaeger.resources`    | CPU/Memory resource requests/limits for Jaeger            | 400Mi memory limit |
+| `userconfig`          | Configuration used for Jaeger's collector instance        |                    |
 
 #### Prometheus
 
 > **Note**
 > The following parameters have a `prometheus.` prefix.
 
-| Parameter                            | Description                                    | Default                                                   |
-|--------------------------------------|------------------------------------------------|-----------------------------------------------------------|
-| `enabled`                            | Install the Prometheus sub-chart               | `true`                                                    |
-| `alertmanager.enabled`               | Install the alertmanager                       | `false`                                                   |
-| `configmapReload.prometheus.enabled` | Install the configmap-reload container         | `false`                                                   |
-| `kube-state-metrics.enabled`         | Install the kube-state-metrics sub-chart       | `false`                                                   |
-| `prometheus-node-exporter.enabled`   | Install the Prometheus Node Exporter sub-chart | `false`                                                   |
-| `prometheus-pushgateway.enabled`     | Install the Prometheus Push Gateway sub-chart  | `false`                                                   |
-| `server.extraFlags`                  | Additional flags to add to Prometheus server   | `["enable-feature=exemplar-storage"]`                     |
-| `server.persistentVolume.enabled`    | Enable persistent storage for Prometheus data  | `false`                                                   |
-| `server.global.scrape_interval`      | How frequently to scrape targets by default    | `5s`                                                      |
-| `server.global.scrap_timeout`        | How long until a scrape request times out      | `3s`                                                      |
-| `server.global.evaluation_interval`  | How frequently to evaluate rules               | `30s`                                                     |
-| `service.servicePort`                | Service port used                              | `9090`                                                    |
-| `serverFiles.prometheus.yml`         | Prometheus configuration file                  | Scrape config to get metrics from OpenTelemetry collector |
+| Parameter                              | Description                                    | Default                                                           |
+|----------------------------------------|------------------------------------------------|-------------------------------------------------------------------|
+| `enabled`                              | Install the Prometheus sub-chart               | `true`                                                            |
+| `alertmanager.enabled`                 | Install the alertmanager                       | `false`                                                           |
+| `configmapReload.prometheus.enabled`   | Install the configmap-reload container         | `false`                                                           |
+| `kube-state-metrics.enabled`           | Install the kube-state-metrics sub-chart       | `false`                                                           |
+| `prometheus-node-exporter.enabled`     | Install the Prometheus Node Exporter sub-chart | `false`                                                           |
+| `prometheus-pushgateway.enabled`       | Install the Prometheus Push Gateway sub-chart  | `false`                                                           |
+| `server.extraFlags`                    | Additional flags to add to Prometheus server   | `["enable-feature=exemplar-storage", "web.enable-otlp-receiver"]` |
+| `server.retention`                     | Metrics data retention time                    | `7d`                                                              |
+| `server.tsdb.out_of_order_time_window` | How long to allow for out of order data        | `30m`                                                             |
+| `server.otlp`                          | OTLP metrics ingest configuration              |                                                                   |
+| `server.persistentVolume.enabled`      | Create persistent volume for storage           | `false`                                                           |
+| `service.servicePort`                  | Service port used                              | `9090`                                                            |
+| `serverFiles.resources`                | CPU/Memory resource requests/limits            | 200Mi memory limit                                                |
 
 #### Grafana
 
 > **Note**
 > The following parameters have a `grafana.` prefix.
 
-| Parameter             | Description                                        | Default                                                              |
-|-----------------------|----------------------------------------------------|----------------------------------------------------------------------|
-| `enabled`             | Install the Grafana sub-chart                      | `true`                                                               |
-| `grafana.ini`         | Grafana's primary configuration                    | Enables anonymous login, and proxy through the frontend-proxy service |
-| `adminPassword`       | Password used by `admin` user                      | `admin`                                                              |
-| `rbac.pspEnabled`     | Enable PodSecurityPolicy resources                 | `false`                                                              |
-| `datasources`         | Configure grafana datasources (passed through tpl) | Prometheus and Jaeger data sources                                   |
-| `dashboardProviders`  | Configure grafana dashboard providers              | Defines a `default` provider based on a file path                    |
-| `dashboardConfigMaps` | ConfigMaps reference that contains dashboards      | Dashboard config map deployed with this Helm chart                   |
+| Parameter       | Description                         | Default                                                               |
+|-----------------|-------------------------------------|-----------------------------------------------------------------------|
+| `enabled`       | Install the Grafana sub-chart       | `true`                                                                |
+| `grafana.ini`   | Grafana's primary configuration     | Enables anonymous login, and proxy through the frontend-proxy service |
+| `adminPassword` | Password used by `admin` user       | `admin`                                                               |
+| `plugins`       | Array of plugins to enable          | `["grafana-opensearch-datasource"]`                                   |
+| `sidecar`       | Configuration for Grafana sidecar   | Enable alerts, dashboards, and data sources                           |
+| `resources`     | CPU/Memory resource requests/limits | 175Mi memory limit                                                    |
 
 #### OpenSearch
 
@@ -1344,7 +1528,7 @@ parameters by default. The overriden parameters are specified below.
 | `clusterName`         | Name of the OpenSearch cluster                    | `demo-cluster`                           |
 | `nodeGroup`           | OpenSearch Node group configuration               | `otel-demo`                              |
 | `singleNode`          | Deploy a single node OpenSearch cluster           | `true`                                   |
-| `opensearchJavaOpts`  | Java options for OpenSearch JVM                   | `-Xms300m -Xmx300m`                      |
+| `opensearchJavaOpts`  | Java options for OpenSearch JVM                   | `-Xms400m -Xmx400m`                      |
 | `persistence.enabled` | Enable persistent storage for OpenSearch data     | `false`                                  |
 | `extraEnvs`           | Additional environment variables for OpenSearch   | Disables demo config and security plugin |
-
+| `resources`           | CPU/Memory resource requests/limits               | 1100Mi memory limit                      |

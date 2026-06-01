@@ -3,6 +3,13 @@ default:
     pullPolicy: Always
     tag: latest
     repository: aericjw/opentelemetry-demo
+  envOverrides:
+    - name: OTEL_COLLECTOR_NAME
+      value: "bindplane-gateway-agent"
+    - name: OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
+      value: "delta"
+    - name: OTEL_RESOURCE_ATTRIBUTES
+      value: "${OTEL_RESOURCE_ATTRIBUTES},primary_tags.app=astroshop,primary_tags.team=agentic-aeric,primary_tags.environment=azure,dt.cost.product=${OTEL_SERVICE_NAME},dt.cost.costcenter=astroshop"
 
 components:
   accounting:
@@ -57,8 +64,6 @@ components:
         value: "8080"
     service:
       type: LoadBalancer
-      annotations:
-        service.beta.kubernetes.io/azure-dns-label: "aeric-otel-demo"
   image-provider:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
@@ -96,8 +101,6 @@ components:
       oneagent.dynatrace.com/inject: "false"
     service:
       type: LoadBalancer
-      annotations:
-        service.beta.kubernetes.io/azure-dns-label: "aeric-postgresql"
   product-catalog:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
@@ -111,7 +114,7 @@ components:
         memory: 200Mi
     envOverrides:
     - name: LLM_MODEL
-      value: claude-sonnet-4-6
+      value: claude-haiku-4-5
     - name: LLM_BASE_URL
       value: "https://api.anthropic.com"
     - name: ANTHROPIC_API_KEY
@@ -140,12 +143,7 @@ prometheus:
 grafana:
   enabled: false
 opentelemetry-collector:
-  enabled: true
-  tolerations:
-    - key: "kubernetes.io/arch"
-      operator: "Equal"
-      value: "arm64"
-      effect: "NoSchedule"
+  enabled: false
   presets:
       hostMetrics:
         enabled: false
