@@ -12,7 +12,7 @@ on:
         type: string
       dockerhub_repo:
         description: Docker Hub repository
-        default: 'otel/demo'
+        default: 'aericjw/opentelemetry-demo'
         required: false
         type: string
 
@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   build_and_push_images:
-    runs-on: otel-demo-builders
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:

@@ -63,3 +63,5 @@ test/tracetesting/tracetesting-vars.yaml
 
 !src/currency/build
 
+# dt-evals
+*.dt-eval.yaml

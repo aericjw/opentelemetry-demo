@@ -16,5 +16,4 @@ jobs:
     permissions:
       contents: read
       packages: write
-    if: ${{ !github.event.repository.fork }}
     uses: ./.github/workflows/component-build-images.yml
