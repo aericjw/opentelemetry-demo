@@ -1,3 +1,6 @@
+# OpenTelemetry Demo Helm Chart
+
+```yaml
 apiVersion: v2
 appVersion: 2.2.0
 dependencies:
@@ -1268,8 +1271,7 @@ opensearch:
     limits:
       memory: 1100Mi
 
----
-# OpenTelemetry Demo Helm Chart
+```
 
 The helm chart installs the
 [OpenTelemetry Demo](https://github.com/open-telemetry/opentelemetry-demo) in a
