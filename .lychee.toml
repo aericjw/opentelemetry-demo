@@ -14,8 +14,11 @@ exclude = [
   "^https://calendar\\.google\\.com/calendar",
   "^https://www\\.gnu\\.org",
   "^https://platform\\.openai\\.com",
+  "^https://community\\.splunk\\.com/t5/AppDynamics-Knowledge-Base/How-to-observe-Kubernetes-deployment-of-OpenTelemetry-demo-app/ta-p/741454$",
+  "^https://axoflow\\.com/opentelemetry-support-in-more-detail-in-axosyslog-and-syslog-ng/$",
 ]
 
 exclude_path = [
   "CHANGELOG\\.md",
+  "kubernetes/otel-demo-chart\\.md",
 ]
