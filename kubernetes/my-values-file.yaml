@@ -4,15 +4,13 @@
 default:
   image:
     pullPolicy: Always
-    tag: latest
+    tag: main
     repository: aericjw/opentelemetry-demo
   envOverrides:
-    - name: OTEL_COLLECTOR_NAME
-      value: "bindplane-gateway-agent"
     - name: OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
       value: "delta"
     - name: OTEL_RESOURCE_ATTRIBUTES
-      value: "${OTEL_RESOURCE_ATTRIBUTES},primary_tags.app=astroshop,primary_tags.team=agentic-aeric,primary_tags.environment=azure,dt.cost.product=${OTEL_SERVICE_NAME},dt.cost.costcenter=astroshop"
+      value: "primary_tags.app=astroshop,primary_tags.team=agentic-aeric,primary_tags.environment=azure,dt.cost.product=$(OTEL_SERVICE_NAME),dt.cost.costcenter=astroshop"
 
 components:
   accounting:
@@ -146,19 +144,19 @@ prometheus:
 grafana:
   enabled: false
 opentelemetry-collector:
-  enabled: false
+  enabled: true
   presets:
       hostMetrics:
-        enabled: false
+        enabled: true
       kubernetesAttributes:
-        enabled: false
+        enabled: true
       kubeletMetrics:
-        enabled: false
+        enabled: true
       clusterMetrics:
-        enabled: false
+        enabled: true
       annotationDiscovery:
         metrics:
-          enabled: false
+          enabled: true
   config:
     receivers:
       otlp:
@@ -249,10 +247,10 @@ opentelemetry-collector:
         timeout: 2s
         override: false
     exporters:
-      otlphttp:
-        endpoint: "${env:DT_ENDPOINT}"
-        headers:
-          Authorization: "Api-Token ${env:DT_API_TOKEN}"
+      otlp:
+        endpoint: "bindplane-gateway-agent.bindplane-agent.svc.cluster.local:4317"
+        tls:
+          insecure: true
       debug:
         verbosity: basic
         sampling_initial: 5
@@ -269,15 +267,15 @@ opentelemetry-collector:
         traces:
           receivers: [otlp]
           processors: [memory_limiter, resourcedetection/aks, k8sattributes, transform, batch]
-          exporters: [otlphttp, spanmetrics]
+          exporters: [otlp, spanmetrics]
         metrics:
           receivers: [otlp, spanmetrics]
           processors: [memory_limiter, cumulativetodelta, resourcedetection/aks, k8sattributes, transform, batch]
-          exporters: [otlphttp]
+          exporters: [otlp]
         logs:
           receivers: [otlp]
           processors: [memory_limiter, resourcedetection/aks, k8sattributes, transform, batch]
-          exporters: [otlphttp]
+          exporters: [otlp]
       extensions:
       - health_check
 

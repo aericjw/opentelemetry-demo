@@ -1,91 +1,10 @@
-# Copyright The OpenTelemetry Authors
-# SPDX-License-Identifier: Apache-2.0
-
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+apiVersion: v1
+kind: Namespace
 metadata:
-  name: bindplane-agent
   labels:
-    app: bindplane-agent
-rules:
-  - apiGroups:
-      - ""
-    resources:
-      - events
-      - namespaces
-      - namespaces/status
-      - nodes
-      - nodes/spec
-      - nodes/stats
-      - nodes/proxy
-      - persistentvolumes
-      - persistentvolumeclaims
-      - pods
-      - pods/status
-      - replicationcontrollers
-      - replicationcontrollers/status
-      - resourcequotas
-      - services
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - apps
-    resources:
-      - daemonsets
-      - deployments
-      - replicasets
-      - statefulsets
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - batch
-    resources:
-      - jobs
-      - cronjobs
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - autoscaling
-    resources:
-      - horizontalpodautoscalers
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - coordination.k8s.io
-    resources:
-      - leases
-    verbs:
-      - get
-      - list
-      - watch
-      - create
-      - update
-      - patch
-      - delete
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
+    app.kubernetes.io/name: bindplane-agent
   name: bindplane-agent
-  labels:
-    app: bindplane-agent
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: bindplane-agent
-subjects:
-  - kind: ServiceAccount
-    name: bindplane-agent
-    namespace: astroshop
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -93,7 +12,7 @@ metadata:
   labels:
     app.kubernetes.io/name: bindplane-agent
   name: bindplane-agent
-  namespace: astroshop
+  namespace: bindplane-agent
 ---
 apiVersion: v1
 kind: Service
@@ -102,7 +21,7 @@ metadata:
     app.kubernetes.io/name: bindplane-agent
     app.kubernetes.io/component: gateway
   name: bindplane-gateway-agent
-  namespace: astroshop
+  namespace: bindplane-agent
 spec:
   ports:
   - appProtocol: grpc
@@ -143,7 +62,7 @@ metadata:
     app.kubernetes.io/name: bindplane-agent
     app.kubernetes.io/component: gateway
   name: bindplane-gateway-agent-headless
-  namespace: astroshop
+  namespace: bindplane-agent
 spec:
   clusterIP: None
   ports:
@@ -170,7 +89,7 @@ metadata:
   labels:
     app.kubernetes.io/name: bindplane-agent
     app.kubernetes.io/component: gateway
-  namespace: astroshop
+  namespace: bindplane-agent
 spec:
   selector:
     matchLabels:
@@ -212,7 +131,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: setup-volumes
-          image: ghcr.io/observiq/bindplane-agent:1.100.0
+          image: ghcr.io/observiq/bindplane-agent:1.101.1
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000000000
@@ -260,7 +179,7 @@ spec:
               name: bindplane-gateway-agent-storage
       containers:
         - name: opentelemetry-container
-          image: ghcr.io/observiq/bindplane-agent:1.100.0
+          image: ghcr.io/observiq/bindplane-agent:1.101.1
           imagePullPolicy: IfNotPresent
           securityContext:
             runAsNonRoot: true
@@ -286,7 +205,7 @@ spec:
             - name: OPAMP_ENDPOINT
               value: wss://app.bindplane.com/v1/opamp
             - name: OPAMP_SECRET_KEY
-              value: 01KPVDJQWMKD7DBPPWRMDXN8WX
+              value: 01KTRAC7T5HSCM1TQBNQ8H3DY3
             - name: OPAMP_AGENT_NAME
               valueFrom:
                 fieldRef:
@@ -324,7 +243,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: bindplane-gateway-agent
-  namespace: astroshop
+  namespace: bindplane-agent
 spec:
   maxReplicas: 10
   minReplicas: 2
