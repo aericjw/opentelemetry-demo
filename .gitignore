@@ -65,3 +65,7 @@ test/tracetesting/tracetesting-vars.yaml
 
 # dt-evals
 *.dt-eval.yaml
+
+# Kubernetes
+/kubernetes/dynatrace-*.yaml
+/kubernetes/bindplane-*.yaml
