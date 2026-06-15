@@ -16,12 +16,14 @@
 .vscode
 
 # AI Agents
+.agents/
 .claude/
 .codex/
 .cursor/
 .cursorrules
 AGENTS.md
 CLAUDE.md
+skills-lock.json
 
 # Build artifacts
 bin/

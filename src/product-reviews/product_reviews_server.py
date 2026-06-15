@@ -85,6 +85,7 @@ tools = [
             },
             "required": ["product_id"],
         },
+        "cache_control": {"type": "ephemeral"},
     }
 ]
 
@@ -162,7 +163,13 @@ def get_ai_assistant_response(request_product_id, question):
         span.set_attribute("app.product.id", request_product_id)
         span.set_attribute("app.product.question", question)
 
-        system_prompt = "You are a helpful assistant that answers related to a specific product. Use tools as needed to fetch the product reviews and product information. Keep the response brief with no more than 1-2 sentences. If you don't know the answer, just say you don't know."
+        system_prompt = [
+            {
+                "type": "text",
+                "text": "You are a helpful assistant that answers related to a specific product. Use tools as needed to fetch the product reviews and product information. Keep the response brief with no more than 1-2 sentences. If you don't know the answer, just say you don't know.",
+                "cache_control": {"type": "ephemeral"},
+            }
+        ]
 
         llm_rate_limit_error = check_feature_flag("llmRateLimitError")
         logger.info(f"llmRateLimitError feature flag: {llm_rate_limit_error}")
@@ -214,7 +221,7 @@ def get_ai_assistant_response(request_product_id, question):
 
         # use the LLM to summarize the product reviews
         initial_response = client.messages.create(
-            model=llm_model,
+            model="claude-haiku-4-5",
             max_tokens=1024,
             system=system_prompt,
             messages=messages,
@@ -291,7 +298,7 @@ def get_ai_assistant_response(request_product_id, question):
             logger.info(f"Invoking the LLM with the following messages: '{messages}'")
 
             final_response = client.messages.create(
-                model=llm_model,
+                model="claude-haiku-4-5",
                 max_tokens=1024,
                 system=system_prompt,
                 messages=messages,
