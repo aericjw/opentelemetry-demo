@@ -789,6 +789,11 @@ services:
     environment:
       - FLAGD_HOST
       - FLAGD_PORT
+      - OTEL_EXPORTER_OTLP_ENDPOINT
+      - OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
+      - OTEL_RESOURCE_ATTRIBUTES=${OTEL_RESOURCE_ATTRIBUTES},service.criticality=medium
+      - OTEL_LOGS_EXPORTER=otlp
+      - OTEL_SERVICE_NAME=llm
     ports:
       - "${LLM_PORT}"
     healthcheck:
@@ -799,6 +804,8 @@ services:
       retries: 20
     depends_on:
       flagd:
+        condition: service_started
+      otel-collector:
         condition: service_started
     logging: *logging
 

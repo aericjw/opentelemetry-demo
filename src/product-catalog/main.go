@@ -27,6 +27,7 @@ import (
 	"go.opentelemetry.io/contrib/otelconf"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/baggage"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/metric"
@@ -53,13 +54,50 @@ type productCatalog struct {
 }
 
 var (
-	logger *slog.Logger
-	db     *sql.DB
-	reg    metric.Registration
+	logger             *slog.Logger
+	db                 *sql.DB
+	reg                metric.Registration
+	productMeter       metric.Meter
+	productViewsCount  metric.Int64Counter
+	productSearchCount metric.Int64Counter
 )
 
 func init() {
 	logger = otelslog.NewLogger("product-catalog")
+}
+
+func initInstruments() {
+	productMeter = otel.Meter("product-catalog")
+	var err error
+	if productViewsCount, err = productMeter.Int64Counter(
+		"demo.product.views",
+		metric.WithDescription("Number of times a product detail page was fetched"),
+		metric.WithUnit("{view}"),
+	); err != nil {
+		logger.Error("failed to create demo.product.views counter", slog.Any("error", err))
+	}
+	if productSearchCount, err = productMeter.Int64Counter(
+		"demo.product.searches",
+		metric.WithDescription("Number of product search queries executed"),
+		metric.WithUnit("{search}"),
+	); err != nil {
+		logger.Error("failed to create demo.product.searches counter", slog.Any("error", err))
+	}
+}
+
+func baggageAttrs(ctx context.Context) []attribute.KeyValue {
+	bag := baggage.FromContext(ctx)
+	var out []attribute.KeyValue
+	if v := bag.Member("session.id").Value(); v != "" {
+		out = append(out, attribute.String("session.id", v))
+	}
+	if v := bag.Member("enduser.id").Value(); v != "" {
+		out = append(out, attribute.String("enduser.id", v))
+	}
+	if v := bag.Member("loyalty_level").Value(); v != "" {
+		out = append(out, attribute.String("demo.user_context.loyalty_level", v))
+	}
+	return out
 }
 
 func initDatabase() error {
@@ -118,6 +156,8 @@ func main() {
 	otel.SetMeterProvider(sdk.MeterProvider())
 	global.SetLoggerProvider(sdk.LoggerProvider())
 	otel.SetTextMapPropagator(sdk.Propagator())
+
+	initInstruments()
 
 	// Initialize database connection
 	if err := initDatabase(); err != nil {
@@ -364,12 +404,21 @@ func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductReque
 	span.SetAttributes(
 		attribute.String("demo.product.id", req.Id),
 	)
+	if bagAttrs := baggageAttrs(ctx); len(bagAttrs) > 0 {
+		span.SetAttributes(bagAttrs...)
+	}
 
 	// GetProduct will fail on a specific product when feature flag is enabled
 	if p.checkProductFailure(ctx, req.Id) {
 		msg := "Error: Product Catalog Fail Feature Flag Enabled"
 		span.SetStatus(otelcodes.Error, msg)
 		span.AddEvent(msg)
+		if productViewsCount != nil {
+			productViewsCount.Add(ctx, 1, metric.WithAttributes(
+				attribute.String("demo.product.id", req.Id),
+				attribute.Bool("success", false),
+			))
+		}
 		return nil, status.Error(codes.Internal, msg)
 	}
 
@@ -378,6 +427,12 @@ func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductReque
 		msg := fmt.Sprintf("Product Not Found: %s", req.Id)
 		span.SetStatus(otelcodes.Error, msg)
 		span.AddEvent(msg)
+		if productViewsCount != nil {
+			productViewsCount.Add(ctx, 1, metric.WithAttributes(
+				attribute.String("demo.product.id", req.Id),
+				attribute.Bool("success", false),
+			))
+		}
 		return nil, status.Error(codes.NotFound, msg)
 	}
 
@@ -386,6 +441,12 @@ func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductReque
 		attribute.String("demo.product.id", req.Id),
 		attribute.String("demo.product.name", found.Name),
 	)
+	if productViewsCount != nil {
+		productViewsCount.Add(ctx, 1, metric.WithAttributes(
+			attribute.String("demo.product.id", req.Id),
+			attribute.Bool("success", true),
+		))
+	}
 
 	logger.LogAttrs(
 		ctx,
@@ -399,16 +460,35 @@ func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductReque
 
 func (p *productCatalog) SearchProducts(ctx context.Context, req *pb.SearchProductsRequest) (*pb.SearchProductsResponse, error) {
 	span := trace.SpanFromContext(ctx)
+	if bagAttrs := baggageAttrs(ctx); len(bagAttrs) > 0 {
+		span.SetAttributes(bagAttrs...)
+	}
 
 	result, err := searchProductsFromDB(ctx, req.Query)
 	if err != nil {
 		span.SetStatus(otelcodes.Error, err.Error())
+		if productSearchCount != nil {
+			productSearchCount.Add(ctx, 1, metric.WithAttributes(
+				attribute.Bool("success", false),
+				attribute.Bool("demo.search.has_results", false),
+			))
+		}
 		return nil, status.Errorf(codes.Internal, "failed to search products: %v", err)
 	}
 
+	hasResults := len(result) > 0
 	span.SetAttributes(
 		attribute.Int("demo.product.search.count", len(result)),
+		attribute.Int("demo.search.query.length", len(req.Query)),
+		attribute.Int("demo.search.results.count", len(result)),
+		attribute.Bool("demo.search.has_results", hasResults),
 	)
+	if productSearchCount != nil {
+		productSearchCount.Add(ctx, 1, metric.WithAttributes(
+			attribute.Bool("success", true),
+			attribute.Bool("demo.search.has_results", hasResults),
+		))
+	}
 	return &pb.SearchProductsResponse{Results: result}, nil
 }
 

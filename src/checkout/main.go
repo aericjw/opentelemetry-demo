@@ -19,7 +19,9 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/log/global"
+	"go.opentelemetry.io/otel/metric"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 	"go.opentelemetry.io/otel/trace"
 
@@ -68,9 +70,59 @@ import (
 var (
 	logger            *slog.Logger
 	tracer            trace.Tracer
+	meter             metric.Meter
+	ordersCounter     metric.Int64Counter
+	orderValueHist    metric.Float64Histogram
+	stageDurationHist metric.Float64Histogram
+	currencyConvCount metric.Int64Counter
 	resource          *sdkresource.Resource
 	initResourcesOnce sync.Once
 )
+
+func initInstruments() {
+	meter = otel.Meter("checkout")
+	var err error
+	if ordersCounter, err = meter.Int64Counter(
+		"demo.orders.placed",
+		metric.WithDescription("Number of orders successfully placed"),
+		metric.WithUnit("{order}"),
+	); err != nil {
+		logger.Error("failed to create demo.orders.placed counter", slog.Any("error", err))
+	}
+	if orderValueHist, err = meter.Float64Histogram(
+		"demo.order.value",
+		metric.WithDescription("Total monetary value of placed orders in the user's selected currency"),
+		metric.WithUnit("{currency}"),
+	); err != nil {
+		logger.Error("failed to create demo.order.value histogram", slog.Any("error", err))
+	}
+	if stageDurationHist, err = meter.Float64Histogram(
+		"demo.checkout.stage.duration",
+		metric.WithDescription("Latency of individual stages of PlaceOrder (prepare, charge, ship, email, kafka)"),
+		metric.WithUnit("ms"),
+	); err != nil {
+		logger.Error("failed to create demo.checkout.stage.duration histogram", slog.Any("error", err))
+	}
+	if currencyConvCount, err = meter.Int64Counter(
+		"demo.currency.conversions",
+		metric.WithDescription("Number of currency conversion requests issued by checkout"),
+		metric.WithUnit("{conversion}"),
+	); err != nil {
+		logger.Error("failed to create demo.currency.conversions counter", slog.Any("error", err))
+	}
+}
+
+func recordStage(ctx context.Context, stage string, start time.Time, success bool) {
+	if stageDurationHist == nil {
+		return
+	}
+	stageDurationHist.Record(ctx, float64(time.Since(start).Milliseconds()),
+		metric.WithAttributes(
+			attribute.String("stage", stage),
+			attribute.Bool("success", success),
+		),
+	)
+}
 
 func initResource() *sdkresource.Resource {
 	initResourcesOnce.Do(func() {
@@ -205,6 +257,7 @@ func main() {
 	openfeature.AddHooks(otelhooks.NewTracesHook())
 
 	tracer = tp.Tracer("checkout")
+	initInstruments()
 
 	svc := new(checkout)
 	svc.httpClient = &http.Client{
@@ -305,6 +358,26 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		attribute.String("user.id", req.UserId),
 		attribute.String("demo.user_context.selected_currency", req.UserCurrency),
 	)
+
+	// Propagated business context from upstream (frontend / load-generator).
+	bag := baggage.FromContext(ctx)
+	loyaltyLevel := bag.Member("loyalty_level").Value()
+	sessionID := bag.Member("session.id").Value()
+	cartID := bag.Member("cart.id").Value()
+	enduserID := bag.Member("enduser.id").Value()
+	if loyaltyLevel != "" {
+		span.SetAttributes(attribute.String("demo.user_context.loyalty_level", loyaltyLevel))
+	}
+	if sessionID != "" {
+		span.SetAttributes(attribute.String("session.id", sessionID))
+	}
+	if cartID != "" {
+		span.SetAttributes(attribute.String("cart.id", cartID))
+	}
+	if enduserID != "" {
+		span.SetAttributes(attribute.String("enduser.id", enduserID))
+	}
+
 	logger.LogAttrs(
 		ctx,
 		slog.LevelInfo, "[PlaceOrder]",
@@ -324,7 +397,9 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		return nil, status.Errorf(codes.Internal, "failed to generate order uuid")
 	}
 
+	prepStart := time.Now()
 	prep, err := cs.prepareOrderItemsAndShippingQuoteFromCart(ctx, req.UserId, req.UserCurrency, req.Address)
+	recordStage(ctx, "prepare", prepStart, err == nil)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -341,7 +416,9 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		total = money.Must(money.Sum(total, multPrice))
 	}
 
+	chargeStart := time.Now()
 	txID, err := cs.chargeCard(ctx, total, req.CreditCard)
+	recordStage(ctx, "charge", chargeStart, err == nil)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to charge card: %+v", err)
 	}
@@ -354,7 +431,9 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		slog.String("transaction_id", txID),
 	)
 
+	shipStart := time.Now()
 	shippingTrackingID, err := cs.shipOrder(ctx, req.Address, prep.cartItems)
+	recordStage(ctx, "ship", shipStart, err == nil)
 	if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "shipping error: %+v", err)
 	}
@@ -391,8 +470,25 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		slog.String("demo.shipping.tracking.id", shippingTrackingID),
 	)
 
-	if err := cs.sendOrderConfirmation(ctx, req.Email, orderResult); err != nil {
-		logger.Warn(fmt.Sprintf("failed to send order confirmation: %+v", err))
+	// Business metrics: orders placed + GMV histogram, dimensioned by currency and loyalty.
+	orderAttrs := []attribute.KeyValue{
+		attribute.String("currency", req.UserCurrency),
+	}
+	if loyaltyLevel != "" {
+		orderAttrs = append(orderAttrs, attribute.String("loyalty_level", loyaltyLevel))
+	}
+	if ordersCounter != nil {
+		ordersCounter.Add(ctx, 1, metric.WithAttributes(orderAttrs...))
+	}
+	if orderValueHist != nil {
+		orderValueHist.Record(ctx, totalPriceFloat, metric.WithAttributes(orderAttrs...))
+	}
+
+	emailStart := time.Now()
+	emailErr := cs.sendOrderConfirmation(ctx, req.Email, orderResult)
+	recordStage(ctx, "email", emailStart, emailErr == nil)
+	if emailErr != nil {
+		logger.Warn(fmt.Sprintf("failed to send order confirmation: %+v", emailErr))
 	} else {
 		logger.Info("order confirmation email sent")
 	}
@@ -400,7 +496,9 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 	// send to kafka only if kafka broker address is set
 	if cs.kafkaBrokerSvcAddr != "" {
 		logger.Info("sending to postProcessor")
+		kafkaStart := time.Now()
 		cs.sendToPostProcessor(ctx, orderResult)
+		recordStage(ctx, "kafka", kafkaStart, true)
 	}
 
 	resp := &pb.PlaceOrderResponse{Order: orderResult}
@@ -547,6 +645,13 @@ func (cs *checkout) convertCurrency(ctx context.Context, from *pb.Money, toCurre
 		From:   from,
 		ToCode: toCurrency,
 	})
+	if currencyConvCount != nil {
+		currencyConvCount.Add(ctx, 1, metric.WithAttributes(
+			attribute.String("from", from.GetCurrencyCode()),
+			attribute.String("to", toCurrency),
+			attribute.Bool("success", err == nil),
+		))
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert currency: %+v", err)
 	}

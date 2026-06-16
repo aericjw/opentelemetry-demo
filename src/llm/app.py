@@ -14,8 +14,55 @@ import logging
 from openfeature import api
 from openfeature.contrib.provider.flagd import FlagdProvider
 
+from opentelemetry import trace, metrics
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+from opentelemetry.instrumentation.flask import FlaskInstrumentor
+from opentelemetry.instrumentation.logging import LoggingInstrumentor
+
 app = Flask(__name__)
 app.logger.setLevel(logging.INFO)
+
+# -------------------------------------------------------------------------
+# OpenTelemetry setup
+# -------------------------------------------------------------------------
+# Honor OTEL_SERVICE_NAME / OTEL_RESOURCE_ATTRIBUTES / OTEL_EXPORTER_OTLP_*
+# env vars (set in compose.yaml).
+_resource = Resource.create({})
+trace.set_tracer_provider(TracerProvider(resource=_resource))
+trace.get_tracer_provider().add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+metrics.set_meter_provider(
+    MeterProvider(
+        resource=_resource,
+        metric_readers=[PeriodicExportingMetricReader(OTLPMetricExporter())],
+    )
+)
+
+FlaskInstrumentor().instrument_app(app)
+LoggingInstrumentor().instrument(set_logging_format=True)
+
+tracer = trace.get_tracer("llm")
+meter = metrics.get_meter("llm")
+
+# GenAI semantic-convention instruments
+# https://opentelemetry.io/docs/specs/semconv/gen-ai/
+token_usage_hist = meter.create_histogram(
+    name="gen_ai.client.token.usage",
+    unit="{token}",
+    description="Measures number of input and output tokens used",
+)
+operation_count = meter.create_counter(
+    name="gen_ai.client.operation.count",
+    unit="{operation}",
+    description="Number of GenAI client operations performed",
+)
+
+GEN_AI_SYSTEM = "openai-mock"
 
 product_review_summaries = None
 product_review_summaries_file_path = "./product-review-summaries.json"
@@ -83,6 +130,25 @@ def parse_product_id(last_message):
 
     raise ValueError("product ID not found in input message")
 
+
+def _record_genai_metrics(model: str, prompt_tokens: int, completion_tokens: int, finish_reason: str):
+    """Emit gen_ai.* metrics for an inference."""
+    common_attrs = {
+        "gen_ai.system": GEN_AI_SYSTEM,
+        "gen_ai.request.model": model,
+        "gen_ai.operation.name": "chat",
+    }
+    operation_count.add(1, common_attrs)
+    token_usage_hist.record(
+        prompt_tokens,
+        {**common_attrs, "gen_ai.token.type": "input"},
+    )
+    token_usage_hist.record(
+        completion_tokens,
+        {**common_attrs, "gen_ai.token.type": "output"},
+    )
+
+
 @app.route('/v1/chat/completions', methods=['POST'])
 def chat_completions():
     data = request.json
@@ -93,77 +159,109 @@ def chat_completions():
 
     app.logger.info("Received a chat completion request")
 
-    last_message = messages[-1]["content"]
+    # Manual span following OTel GenAI semantic conventions so Dynatrace AI
+    # Observability can attribute token cost, latency and finish reason.
+    with tracer.start_as_current_span(f"chat {model}") as span:
+        span.set_attribute("gen_ai.system", GEN_AI_SYSTEM)
+        span.set_attribute("gen_ai.operation.name", "chat")
+        span.set_attribute("gen_ai.request.model", model)
+        span.set_attribute("gen_ai.request.message.count", len(messages))
+        if tools is not None:
+            span.set_attribute("gen_ai.request.tool.count", len(tools))
 
-    app.logger.info("Processing last chat message")
+        last_message = messages[-1]["content"]
 
-    if 'What age(s) is this recommended for?' in last_message:
-        response_text = 'This product is recommended for ages 7 and above.'
-        return build_response(model, messages, response_text)
-    elif 'Were there any negative reviews?' in last_message:
-        response_text = 'No, there were no reviews less than three stars for this product.'
-        return build_response(model, messages, response_text)
-    elif not ('Can you summarize the product reviews?' in last_message or 'Based on the tool results, answer the original question about product ID' in last_message):
-        response_text = 'Sorry, I\'m not able to answer that question.'
-        return build_response(model, messages, response_text)
+        app.logger.info("Processing last chat message")
 
-    # otherwise, process the product review summary
-    product_id = parse_product_id(last_message)
+        if 'What age(s) is this recommended for?' in last_message:
+            response_text = 'This product is recommended for ages 7 and above.'
+            return _build_and_finalize(span, model, messages, response_text)
+        elif 'Were there any negative reviews?' in last_message:
+            response_text = 'No, there were no reviews less than three stars for this product.'
+            return _build_and_finalize(span, model, messages, response_text)
+        elif not ('Can you summarize the product reviews?' in last_message or 'Based on the tool results, answer the original question about product ID' in last_message):
+            response_text = 'Sorry, I\'m not able to answer that question.'
+            return _build_and_finalize(span, model, messages, response_text)
 
-    if tools is not None:
+        # otherwise, process the product review summary
+        product_id = parse_product_id(last_message)
+        span.set_attribute("demo.product.id", product_id)
 
-        tool_args = f"{{\"product_id\": \"{product_id}\"}}"
+        if tools is not None:
 
-        app.logger.info("Processing a tool call")
+            tool_args = f"{{\"product_id\": \"{product_id}\"}}"
 
-        app.logger.info("Processing requested model")
-        if model.endswith("rate-limit"):
-            app.logger.info("Returning a rate limit error")
-            response = {
-                "error": {
-                    "message": "Rate limit reached. Please try again later.",
-                    "type": "rate_limit_exceeded",
-                    "param": "null",
-                    "code": "null"
+            app.logger.info("Processing a tool call")
+
+            app.logger.info("Processing requested model")
+            if model.endswith("rate-limit"):
+                app.logger.info("Returning a rate limit error")
+                span.set_attribute("error.type", "rate_limit_exceeded")
+                span.set_attribute("gen_ai.response.finish_reasons", ["error"])
+                _record_genai_metrics(model, sum(len(m.get("content", "").split()) for m in messages), 0, "error")
+                response = {
+                    "error": {
+                        "message": "Rate limit reached. Please try again later.",
+                        "type": "rate_limit_exceeded",
+                        "param": "null",
+                        "code": "null"
+                    }
                 }
-            }
-            return jsonify(response), 429
+                return jsonify(response), 429
+            else:
+                # Non-streaming response
+                prompt_tokens = sum(len(m.get("content", "").split()) for m in messages)
+                response = {
+                    "id": f"chatcmpl-mock-{int(time.time())}",
+                    "object": "chat.completion",
+                    "created": int(time.time()),
+                    "model": model,
+                    "choices": [{
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": "requesting a tool call",
+                            "tool_calls": [{
+                                "id": "call",
+                                "type": "function",
+                                "function": {
+                                    "name": "fetch_product_reviews",
+                                    "arguments": tool_args
+                                }
+                            }]
+                        },
+                        "finish_reason": "tool_calls"
+                    }],
+                    "usage": {
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": "0",
+                        "total_tokens": prompt_tokens
+                    }
+                }
+                span.set_attribute("gen_ai.response.model", model)
+                span.set_attribute("gen_ai.response.finish_reasons", ["tool_calls"])
+                span.set_attribute("gen_ai.usage.input_tokens", prompt_tokens)
+                span.set_attribute("gen_ai.usage.output_tokens", 0)
+                _record_genai_metrics(model, prompt_tokens, 0, "tool_calls")
+                return jsonify(response)
+
         else:
-            # Non-streaming response
-            response = {
-                "id": f"chatcmpl-mock-{int(time.time())}",
-                "object": "chat.completion",
-                "created": int(time.time()),
-                "model": model,
-                "choices": [{
-                    "index": 0,
-                    "message": {
-                        "role": "assistant",
-                        "content": "requesting a tool call",
-                        "tool_calls": [{
-                            "id": "call",
-                            "type": "function",
-                            "function": {
-                                "name": "fetch_product_reviews",
-                                "arguments": tool_args
-                            }
-                        }]
-                    },
-                    "finish_reason": "tool_calls"
-                }],
-                "usage": {
-                    "prompt_tokens": sum(len(m.get("content", "").split()) for m in messages),
-                    "completion_tokens": "0",
-                    "total_tokens": sum(len(m.get("content", "").split()) for m in messages)
-                }
-            }
-            return jsonify(response)
+            # Generate the response
+            response_text = generate_response(product_id)
+            return _build_and_finalize(span, model, messages, response_text)
 
-    else:
-        # Generate the response
-        response_text = generate_response(product_id)
 
-        return build_response(model, messages, response_text)
+def _build_and_finalize(span, model, messages, response_text):
+    """Build the response and stamp GenAI semconv attributes / metrics."""
+    prompt_tokens = sum(len(m.get("content", "").split()) for m in messages)
+    completion_tokens = len(response_text.split())
+    span.set_attribute("gen_ai.response.model", model)
+    span.set_attribute("gen_ai.response.finish_reasons", ["stop"])
+    span.set_attribute("gen_ai.usage.input_tokens", prompt_tokens)
+    span.set_attribute("gen_ai.usage.output_tokens", completion_tokens)
+    _record_genai_metrics(model, prompt_tokens, completion_tokens, "stop")
+    return build_response(model, messages, response_text)
+
 
 def build_response(model, messages, response_text):
     app.logger.info(f"Processing a response: '{response_text}'")
