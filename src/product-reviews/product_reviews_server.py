@@ -20,7 +20,7 @@ from opentelemetry.exporter.otlp.proto.grpc._log_exporter import (
 from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.sdk.resources import Resource
-from opentelemetry.trace import Status, StatusCode
+from opentelemetry.trace import Status, StatusCode, SpanKind
 
 # Local
 import logging
@@ -86,6 +86,174 @@ tools = [
           }
       }
 ]
+
+from urllib.parse import urlparse
+
+# Map of host suffixes -> OpenTelemetry well-known gen_ai.provider.name values.
+# See https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-spans.md
+GEN_AI_PROVIDER_HOST_MAP = (
+    ("openai.azure.com", "azure.ai.openai"),
+    ("cognitiveservices.azure.com", "azure.ai.openai"),
+    ("inference.ai.azure.com", "azure.ai.inference"),
+    ("services.ai.azure.com", "azure.ai.inference"),
+    ("api.openai.com", "openai"),
+    ("api.anthropic.com", "anthropic"),
+    ("bedrock-runtime", "aws.bedrock"),
+    ("bedrock.amazonaws.com", "aws.bedrock"),
+    ("generativelanguage.googleapis.com", "gcp.gemini"),
+    ("aiplatform.googleapis.com", "gcp.vertex_ai"),
+    ("api.cohere.com", "cohere"),
+    ("api.cohere.ai", "cohere"),
+    ("api.deepseek.com", "deepseek"),
+    ("api.groq.com", "groq"),
+    ("api.mistral.ai", "mistral_ai"),
+    ("api.moonshot.ai", "moonshot_ai"),
+    ("api.perplexity.ai", "perplexity"),
+    ("api.x.ai", "x_ai"),
+    ("watsonx.ai", "ibm.watsonx.ai"),
+)
+
+
+def derive_provider_name(base_url):
+    if not base_url:
+        return "openai"
+    try:
+        host = (urlparse(base_url).hostname or "").lower()
+    except ValueError:
+        return "openai"
+    for suffix, provider in GEN_AI_PROVIDER_HOST_MAP:
+        if host == suffix or host.endswith("." + suffix) or suffix in host:
+            return provider
+    # Default: the client wire format is OpenAI-compatible.
+    return "openai"
+
+
+def _server_address_and_port(base_url):
+    if not base_url:
+        return None, None
+    try:
+        parsed = urlparse(base_url)
+    except ValueError:
+        return None, None
+    return parsed.hostname, parsed.port
+
+
+def _to_text_content(content):
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    return json.dumps(content)
+
+
+def _openai_message_to_genai(message):
+    if hasattr(message, "model_dump"):
+        message = message.model_dump(exclude_none=True)
+    elif not isinstance(message, dict):
+        message = dict(message)
+
+    role = message.get("role", "user")
+    parts = []
+
+    content = message.get("content")
+    if content:
+        parts.append({"type": "text", "content": _to_text_content(content)})
+
+    for tool_call in message.get("tool_calls") or []:
+        fn = tool_call.get("function", {}) if isinstance(tool_call, dict) else {}
+        raw_args = fn.get("arguments")
+        try:
+            arguments = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
+        except (TypeError, ValueError):
+            arguments = raw_args
+        parts.append({
+            "type": "tool_call",
+            "id": tool_call.get("id"),
+            "name": fn.get("name"),
+            "arguments": arguments,
+        })
+
+    if role == "tool":
+        parts = [{
+            "type": "tool_call_response",
+            "id": message.get("tool_call_id"),
+            "response": _to_text_content(content),
+        }]
+
+    return {"role": role, "parts": parts}
+
+
+def build_genai_messages(messages):
+    system_instructions = []
+    input_messages = []
+    for m in messages:
+        msg = m.model_dump(exclude_none=True) if hasattr(m, "model_dump") else (
+            dict(m) if not isinstance(m, dict) else m
+        )
+        if msg.get("role") == "system":
+            content = msg.get("content")
+            if content:
+                system_instructions.append({"type": "text", "content": _to_text_content(content)})
+            continue
+        input_messages.append(_openai_message_to_genai(msg))
+    return system_instructions, input_messages
+
+
+def build_genai_output_messages(response):
+    output_messages = []
+    finish_reasons = []
+    for choice in getattr(response, "choices", []) or []:
+        genai_msg = _openai_message_to_genai(choice.message)
+        finish_reason = getattr(choice, "finish_reason", None)
+        if finish_reason:
+            genai_msg["finish_reason"] = finish_reason
+            finish_reasons.append(finish_reason)
+        output_messages.append(genai_msg)
+    return output_messages, finish_reasons
+
+
+def set_genai_request_attributes(span, model, messages, base_url=None):
+    span.set_attribute("gen_ai.operation.name", "chat")
+    span.set_attribute("gen_ai.provider.name", derive_provider_name(base_url))
+    span.set_attribute("gen_ai.request.model", model)
+    server_address, server_port = _server_address_and_port(base_url)
+    if server_address:
+        span.set_attribute("server.address", server_address)
+    if server_port:
+        span.set_attribute("server.port", server_port)
+    system_instructions, input_messages = build_genai_messages(messages)
+    if system_instructions:
+        span.set_attribute("gen_ai.system_instructions", json.dumps(system_instructions))
+    if input_messages:
+        span.set_attribute("gen_ai.input.messages", json.dumps(input_messages))
+
+
+def set_genai_tool_definitions(span, tool_defs):
+    if not tool_defs:
+        return
+    definitions = []
+    for tool in tool_defs:
+        fn = tool.get("function", {})
+        definitions.append({
+            "type": tool.get("type", "function"),
+            "name": fn.get("name"),
+            "description": fn.get("description"),
+            "parameters": fn.get("parameters"),
+        })
+    span.set_attribute("gen_ai.tool.definitions", json.dumps(definitions))
+
+
+def set_genai_response_attributes(span, response):
+    span.set_attribute("gen_ai.response.model", response.model)
+    span.set_attribute("gen_ai.response.id", response.id)
+    if response.usage:
+        span.set_attribute("gen_ai.usage.input_tokens", response.usage.prompt_tokens)
+        span.set_attribute("gen_ai.usage.output_tokens", response.usage.completion_tokens)
+    output_messages, finish_reasons = build_genai_output_messages(response)
+    if output_messages:
+        span.set_attribute("gen_ai.output.messages", json.dumps(output_messages))
+    if finish_reasons:
+        span.set_attribute("gen_ai.response.finish_reasons", finish_reasons)
 
 class ProductReviewService(demo_pb2_grpc.ProductReviewServiceServicer):
     def GetProductReviews(self, request, context):
@@ -184,13 +352,22 @@ def get_ai_assistant_response(request_product_id, question):
                 ]
                 logger.info(f"Invoking mock LLM with model: astronomy-llm-rate-limit")
 
+                rate_limit_model = "astronomy-llm-rate-limit"
                 try:
-                    initial_response = client.chat.completions.create(
-                        model="astronomy-llm-rate-limit",
-                        messages=messages,
-                        tools=tools,
-                        tool_choice="auto"
-                    )
+                    with tracer.start_as_current_span(
+                        f"chat {rate_limit_model}", kind=SpanKind.CLIENT
+                    ) as chat_span:
+                        set_genai_request_attributes(chat_span, rate_limit_model, messages, llm_mock_url)
+                        set_genai_tool_definitions(chat_span, tools)
+
+                        initial_response = client.chat.completions.create(
+                            model=rate_limit_model,
+                            messages=messages,
+                            tools=tools,
+                            tool_choice="auto"
+                        )
+
+                        set_genai_response_attributes(chat_span, initial_response)
                 except Exception as e:
                     logger.error(f"Caught Exception: {e}")
                     # Record the exception
@@ -214,13 +391,19 @@ def get_ai_assistant_response(request_product_id, question):
            {"role": "user", "content": user_prompt}
         ]
 
-        # use the LLM to summarize the product reviews
-        initial_response = client.chat.completions.create(
-            model=llm_model,
-            messages=messages,
-            tools=tools,
-            tool_choice="auto"
-        )
+        with tracer.start_as_current_span(f"chat {llm_model}", kind=SpanKind.CLIENT) as chat_span:
+            set_genai_request_attributes(chat_span, llm_model, messages, llm_base_url)
+            set_genai_tool_definitions(chat_span, tools)
+
+            # use the LLM to summarize the product reviews
+            initial_response = client.chat.completions.create(
+                model=llm_model,
+                messages=messages,
+                tools=tools,
+                tool_choice="auto"
+            )
+
+            set_genai_response_attributes(chat_span, initial_response)
 
         response_message = initial_response.choices[0].message
         tool_calls = response_message.tool_calls
@@ -289,10 +472,15 @@ def get_ai_assistant_response(request_product_id, question):
 
             logger.info(f"Invoking the LLM with the following messages: '{messages}'")
 
-            final_response = client.chat.completions.create(
-                model=llm_model,
-                messages=messages
-            )
+            with tracer.start_as_current_span(f"chat {llm_model}", kind=SpanKind.CLIENT) as chat_span:
+                set_genai_request_attributes(chat_span, llm_model, messages, llm_base_url)
+
+                final_response = client.chat.completions.create(
+                    model=llm_model,
+                    messages=messages
+                )
+
+                set_genai_response_attributes(chat_span, final_response)
 
             result = final_response.choices[0].message.content
 
