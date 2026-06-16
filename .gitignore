@@ -71,3 +71,4 @@ test/tracetesting/tracetesting-vars.yaml
 # Kubernetes
 /kubernetes/dynatrace-*.yaml
 /kubernetes/bindplane-*.yaml
+/kubernetes/_chart-cache/

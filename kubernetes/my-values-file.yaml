@@ -117,8 +117,8 @@ components:
     - name: LLM_MODEL
       value: claude-haiku-4-5
     - name: LLM_BASE_URL
-      value: "https://api.anthropic.com"
-    - name: ANTHROPIC_API_KEY
+      value: "https://api.anthropic.com/v1/"
+    - name: OPENAI_API_KEY
       valueFrom:
         secretKeyRef:
           name: anthropic-api-key
