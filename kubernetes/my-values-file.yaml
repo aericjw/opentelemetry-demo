@@ -10,7 +10,7 @@ default:
     - name: OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
       value: "delta"
     - name: OTEL_RESOURCE_ATTRIBUTES
-      value: "primary_tags.app=astroshop,primary_tags.team=agentic-aeric,primary_tags.environment=azure,dt.cost.product=$(OTEL_SERVICE_NAME),dt.cost.costcenter=astroshop"
+      value: "primary_tags.app=astroshop,primary_tags.team=agentic-aeric,primary_tags.environment=azure,dt.cost.product=$(OTEL_SERVICE_NAME),dt.cost.costcenter=astroshop,dt.security_context=$(OTEL_SERVICE_NAME)"
 
 components:
   accounting:
@@ -157,19 +157,59 @@ opentelemetry-collector:
       annotationDiscovery:
         metrics:
           enabled: true
+  resources:
+    limits:
+      memory: 200Mi
+  service:
+    enabled: true
+  ports:
+    metrics:
+      enabled: true
+    jaeger-compact:
+      enabled: false
+    jaeger-thrift:
+      enabled: false
+    jaeger-grpc:
+      enabled: false
+    zipkin:
+      enabled: false
   config:
     receivers:
       otlp:
         protocols:
-          grpc:
-            endpoint: ${env:MY_POD_IP}:4317
           http:
+            # Since this collector needs to receive data from the web, enable cors for all origins
+            # `allowed_origins` can be refined for your deployment domain
             cors:
               allowed_origins:
-              - http://*
-              - https://*
-            endpoint: ${env:MY_POD_IP}:4318
+                - "http://*"
+                - "https://*"
+      kafkametrics:
+        scrapers:
+          - brokers
+          - topics
+          - consumers
+        brokers:
+          - kafka:9092
+        collection_interval: 10s
+
+    exporters:
+      otlp:
+        endpoint: "bindplane-gateway-agent.bindplane-agent.svc.cluster.local:4317"
+        tls:
+          insecure: true
+      debug:
+        verbosity: basic
+        sampling_initial: 5
+        sampling_thereafter: 2000
+
     processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 75
+        spike_limit_percentage: 15
+      resourcedetection:
+        detectors: [env, system, aks]
       k8sattributes:
         extract:
           metadata:
@@ -215,7 +255,34 @@ opentelemetry-collector:
               name: k8s.pod.uid
           - sources:
             - from: connection
-      transform:
+      resource:
+        attributes:
+        - key: service.instance.id
+          from_attribute: k8s.pod.uid
+          action: insert
+      transform/sanitize:
+        error_mode: ignore
+        trace_statements:
+          # Sanitize spans to prevent span metrics cardinality explosion
+          # caused by non-compliant high cardinality span names:
+          # 1. Define missing http.route on key HTTP operations for meaningful operation names
+          # 2. Then normalize span names; http server spans lacking http.route default to operations "GET", "POST", etc.
+          - context: span
+            # FRONTEND SERVICE
+            conditions:
+              - span.kind == SPAN_KIND_SERVER and resource.attributes["service.name"] == "frontend" and span.attributes["http.route"] == nil
+            statements:
+              # Workaround for Next.js high cardinality span name issue: https://github.com/vercel/next.js/issues/54694
+              - set(span.attributes["http.route"], "/api/cart") where IsMatch(span.attributes["http.target"], "\\/api\\/cart")  # e.g. # /api/cart
+              - set(span.attributes["http.route"], "/api/checkout") where IsMatch(span.attributes["http.target"], "\\/api\\/checkout")  # e.g. # /api/checkout
+              - set(span.attributes["http.route"], "/api/products/{productId}") where IsMatch(span.attributes["http.target"], "\\/api\\/products\\/.*")  # e.g. /api/products/1YMWWN1N4O
+              - set(span.attributes["http.route"], "/api/recommendations") where IsMatch(span.attributes["http.target"], "\\/api\\/recommendations")  # e.g. # /api/recommendations?productIds=...
+              - set(span.attributes["http.route"], "/api/data") where IsMatch(span.attributes["http.target"], "\\/api\\/data.*")  # e.g. # " /api/data?contextKeys=telescopes" or /api/data/?contextKeys=cameras
+          - context: span
+            statements:
+              # SANITIZE ALL SPAN NAMES TO PREVENT CARDINALITY EXPLOSION
+              - set_semconv_span_name("1.37.0", "unsanitized_span_name")
+      transform/dynatrace:
         error_mode: ignore
         trace_statements: &dynatrace_transformations
           - context: resource
@@ -235,26 +302,8 @@ opentelemetry-collector:
         metric_statements: *dynatrace_transformations
         log_statements: *dynatrace_transformations
       cumulativetodelta: {}
-      memory_limiter:
-        check_interval: 1s
-        limit_percentage: 75
-        spike_limit_percentage: 15
-      batch:
-        send_batch_size: 10000
-        timeout: 10s
-      resourcedetection/aks:
-        detectors: [env, system]
-        timeout: 2s
-        override: false
-    exporters:
-      otlp:
-        endpoint: "bindplane-gateway-agent.bindplane-agent.svc.cluster.local:4317"
-        tls:
-          insecure: true
-      debug:
-        verbosity: basic
-        sampling_initial: 5
-        sampling_thereafter: 2000
+
+
     
     connectors:
       spanmetrics: {}
@@ -265,86 +314,13 @@ opentelemetry-collector:
     service:
       pipelines:
         traces:
-          receivers: [otlp]
-          processors: [memory_limiter, resourcedetection/aks, k8sattributes, transform, batch]
-          exporters: [otlp, spanmetrics]
+          processors: [memory_limiter, resourcedetection, k8sattributes, resource, transform/sanitize, transform/dynatrace]
+          exporters: [otlp, spanmetrics, debug]
         metrics:
-          receivers: [otlp, spanmetrics]
-          processors: [memory_limiter, cumulativetodelta, resourcedetection/aks, k8sattributes, transform, batch]
-          exporters: [otlp]
+          receivers: [otlp, kafkametrics, spanmetrics]
+          processors: [memory_limiter, resourcedetection, k8sattributes, resource, transform/dynatrace, cumulativetodelta]
+          exporters: [otlp, debug]
         logs:
           receivers: [otlp]
-          processors: [memory_limiter, resourcedetection/aks, k8sattributes, transform, batch]
-          exporters: [otlp]
-      extensions:
-      - health_check
-
-      # turn on self-monitoring
-      telemetry:
-        metrics:
-          # metrics verbosity level. Higher verbosity means more metrics.
-          # The dashboard relies on metrics at level detailed.
-          level: detailed
-          # set up OTLP exporter
-          readers:
-            - periodic:
-                interval: 60000
-                exporter:
-                  otlp:
-                    protocol: http/protobuf
-                    temporality_preference: delta
-                    endpoint: "${env:DT_ENDPOINT}/v1/metrics"
-                    headers:
-                      - name: Authorization
-                        value: "Api-Token ${env:DT_API_TOKEN}"
-
-  extraEnvs: []
-  extraEnvsFrom:
-    - secretRef:
-        name: dynatrace-otelcol-dt-api-credentials
-
-  # Configuration for ports
-  # nodePort is also allowed
-  ports:
-    otlp:
-      enabled: true
-      containerPort: 4317
-      servicePort: 4317
-      hostPort: 4317
-      protocol: TCP
-      appProtocol: grpc
-    otlp-http:
-      enabled: true
-      containerPort: 4318
-      servicePort: 4318
-      hostPort: 4318
-      protocol: TCP
-    jaeger-compact:
-      enabled: false
-    jaeger-thrift:
-      enabled: false
-    jaeger-grpc:
-      enabled: false
-    zipkin:
-      enabled: false
-    metrics:
-      enabled: true
-      containerPort: 8888
-      servicePort: 8888
-      protocol: TCP
-    health:
-      containerPort: 13133
-      servicePort: 13133
-      protocol: TCP
-      enabled: true
-
-  useGOMEMLIMIT: true
-
-  resources:
-    limits:
-      memory: 512Mi
-
-  podAnnotations:
-    metrics.dynatrace.com/port: "8888"
-    metrics.dynatrace.com/scrape: "true"
-    oneagent.dynatrace.com/inject: "false"
+          processors: [memory_limiter, resourcedetection, k8sattributes, resource, transform/dynatrace]
+          exporters: [otlp, debug]
