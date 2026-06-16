@@ -302,15 +302,10 @@ opentelemetry-collector:
         metric_statements: *dynatrace_transformations
         log_statements: *dynatrace_transformations
       cumulativetodelta: {}
-
-
     
     connectors:
       spanmetrics: {}
-    extensions:
-      health_check:
-        endpoint: "0.0.0.0:13133"
-        path: "/"
+
     service:
       pipelines:
         traces:
