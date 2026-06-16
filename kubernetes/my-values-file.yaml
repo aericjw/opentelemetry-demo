@@ -63,6 +63,10 @@ components:
         value: "telemetry-docs"
       - name: TELEMETRY_DOCS_PORT
         value: "8080"
+      - name: FIREPIT_HOST
+        value: "firepit"
+      - name: FIREPIT_PORT
+        value: "8080"
     service:
       type: LoadBalancer
   image-provider:
@@ -132,6 +136,13 @@ components:
   shipping:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
+    envOverrides:
+      - name: FLAGD_HOST
+        value: "flagd"
+      - name: FLAGD_PORT
+        value: "8013"
+      - name: FLAGD_OFREP_PORT
+        value: "8016"
   valkey-cart:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
