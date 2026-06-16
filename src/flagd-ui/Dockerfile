@@ -14,21 +14,7 @@
 #   - https://pkgs.org/ - resource for finding needed packages
 #   - Ex: docker.io/hexpm/elixir:1.18.4-erlang-27.3.4-debian-bookworm-20250610-slim
 #
-ARG ELIXIR_VERSION=1.19.3
-ARG OTP_VERSION=28.0.2
-ARG DEBIAN_VERSION=bullseye-20251117-slim
-
-ARG BUILDER_IMAGE="docker.io/hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
-ARG RUNNER_IMAGE="docker.io/debian:${DEBIAN_VERSION}"
-
-# Provides the ERTS binaries for the TARGET platform (e.g. linux/amd64).
-# No --platform override, so BuildKit resolves this to the target architecture.
-# Contains no RUN commands so no Erlang code ever executes under QEMU emulation.
-FROM ${BUILDER_IMAGE} AS erts-provider
-
-# Builder runs on the BUILD platform (e.g. linux/arm64 on Apple Silicon),
-# avoiding the QEMU + OTP 26+ prim_tty NIF incompatibility entirely.
-FROM --platform=$BUILDPLATFORM ${BUILDER_IMAGE} AS builder
+FROM docker.io/hexpm/elixir:1.19.3-erlang-28.0.2-debian-bullseye-20251117-slim@sha256:78ae416dd0f9100dec7fbc58da76e2cdd0400b6eece5ddb5055390f3162c97cd AS builder
 
 # install build dependencies
 RUN apt-get update \
@@ -75,17 +61,11 @@ RUN mix release
 
 # start a new build stage so that the final image will only contain
 # the compiled release and other runtime necessities
-FROM ${RUNNER_IMAGE} AS final
+FROM docker.io/debian:bullseye-20251117-slim@sha256:530a3348fc4b5734ffe1a137ddbcee6850154285251b53c3425c386ea8fac77b AS final
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends libstdc++6 openssl libncurses5 locales ca-certificates \
   && rm -rf /var/lib/apt/lists/*
-
-# Copy the full target-platform OTP runtime (ERTS + all OTP lib .so NIFs)
-# from erts-provider. Because mix release uses include_erts: false, the
-# release contains only BEAM bytecode and uses this system Erlang at runtime.
-COPY --from=erts-provider /usr/local/lib/erlang /usr/local/lib/erlang
-RUN ln -sf /usr/local/lib/erlang/bin/erl /usr/local/bin/erl
 
 # Set the locale
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen \
