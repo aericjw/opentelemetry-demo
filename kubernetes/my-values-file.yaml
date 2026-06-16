@@ -156,6 +156,9 @@ grafana:
   enabled: false
 opentelemetry-collector:
   enabled: true
+  command:
+    extraArgs:
+      - --feature-gates=service.profilesSupport
   presets:
       hostMetrics:
         enabled: true
@@ -207,6 +210,10 @@ opentelemetry-collector:
     exporters:
       otlp:
         endpoint: "bindplane-gateway-agent.bindplane-agent.svc.cluster.local:4317"
+        tls:
+          insecure: true
+      otlphttp/pyroscope:
+        endpoint: http://pyroscope:4040
         tls:
           insecure: true
       debug:
@@ -330,3 +337,7 @@ opentelemetry-collector:
           receivers: [otlp]
           processors: [memory_limiter, resourcedetection, k8sattributes, resource, transform/dynatrace]
           exporters: [otlp, debug]
+        profiles:
+          receivers: [otlp]
+          processors: [memory_limiter, resourcedetection, k8sattributes, resource]
+          exporters: [otlphttp/pyroscope, debug]

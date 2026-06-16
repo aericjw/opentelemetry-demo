@@ -1,0 +1,151 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# eBPF profiler DaemonSet — one pod per Linux node, samples on-CPU stacks
+# from every process on the host (incl. all demo containers) and ships them
+# as OTLP profiles to the demo's otel-collector Service.
+#
+# Requirements:
+#   - Linux nodepool (nodeSelector: kubernetes.io/os=linux)
+#   - Namespace allows privileged Pod Security Admission level. If your demo
+#     namespace enforces baseline/restricted, label it:
+#       kubectl label ns <demo-namespace> pod-security.kubernetes.io/enforce=privileged --overwrite
+#
+# Apply into the same namespace as the demo release, e.g.:
+#   kubectl apply -n <demo-namespace> -f kubernetes/profiling/10-ebpf-profiler.yaml
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: otel-ebpf-profiler
+  labels:
+    app.kubernetes.io/name: otel-ebpf-profiler
+    app.kubernetes.io/component: profiling
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-ebpf-profiler-config
+  labels:
+    app.kubernetes.io/name: otel-ebpf-profiler
+    app.kubernetes.io/component: profiling
+data:
+  ebpf-profiler-config.yaml: |
+    receivers:
+      profiling:
+        samples_per_second: 19
+        include_env_vars: "OTEL_SERVICE_NAME"
+
+    processors:
+      transform/set_service_name:
+        error_mode: ignore
+        profile_statements:
+          - context: resource
+            statements:
+              - set(attributes["service.name"], attributes["process.environment_variable.OTEL_SERVICE_NAME"]) where attributes["process.environment_variable.OTEL_SERVICE_NAME"] != nil
+              - delete_key(attributes, "process.environment_variable.OTEL_SERVICE_NAME")
+
+    exporters:
+      otlp_grpc/collector:
+        endpoint: ${env:OTEL_COLLECTOR_HOST}:${env:OTEL_COLLECTOR_PORT_GRPC}
+        tls:
+          insecure: true
+
+    service:
+      pipelines:
+        profiles:
+          receivers: [profiling]
+          processors: [transform/set_service_name]
+          exporters: [otlp_grpc/collector]
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: otel-ebpf-profiler
+  labels:
+    app.kubernetes.io/name: otel-ebpf-profiler
+    app.kubernetes.io/component: profiling
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: otel-ebpf-profiler
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: otel-ebpf-profiler
+        app.kubernetes.io/component: profiling
+      annotations:
+        oneagent.dynatrace.com/inject: "false"
+    spec:
+      serviceAccountName: otel-ebpf-profiler
+      hostPID: true
+      nodeSelector:
+        kubernetes.io/os: linux
+      tolerations:
+        - operator: Exists
+          effect: NoSchedule
+        - operator: Exists
+          effect: NoExecute
+      containers:
+        - name: profiler
+          image: otel/opentelemetry-collector-ebpf-profiler:0.151.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --config=/etc/ebpf-profiler-config.yaml
+            - --feature-gates=service.profilesSupport
+          env:
+            # Demo collector Service DNS in the same namespace.
+            # Helm chart default Service name is "<release>-otel-collector"
+            # but the demo chart's _helpers.tpl typically resolves to "otel-collector".
+            # Adjust if your release uses a different fullname override.
+            - name: OTEL_COLLECTOR_HOST
+              value: "otel-collector"
+            - name: OTEL_COLLECTOR_PORT_GRPC
+              value: "4317"
+          securityContext:
+            privileged: true
+            runAsUser: 0
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/ebpf-profiler-config.yaml
+              subPath: ebpf-profiler-config.yaml
+              readOnly: true
+            - name: sys-kernel-debug
+              mountPath: /sys/kernel/debug
+            - name: sys-kernel-tracing
+              mountPath: /sys/kernel/tracing
+            - name: sys-fs-cgroup
+              mountPath: /sys/fs/cgroup
+              readOnly: true
+            - name: proc
+              mountPath: /proc
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: otel-ebpf-profiler-config
+        - name: sys-kernel-debug
+          hostPath:
+            path: /sys/kernel/debug
+            type: Directory
+        - name: sys-kernel-tracing
+          hostPath:
+            path: /sys/kernel/tracing
+            type: Directory
+        - name: sys-fs-cgroup
+          hostPath:
+            path: /sys/fs/cgroup
+            type: Directory
+        - name: proc
+          hostPath:
+            path: /proc
+            type: Directory
