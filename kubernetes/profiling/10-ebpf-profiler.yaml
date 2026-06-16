@@ -1,7 +1,7 @@
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
 
-# eBPF profiler DaemonSet — one pod per Linux node, samples on-CPU stacks
+# eBPF profiler DaemonSet -- one pod per Linux node, samples on-CPU stacks
 # from every process on the host (incl. all demo containers) and ships them
 # as OTLP profiles to the demo's otel-collector Service.
 #

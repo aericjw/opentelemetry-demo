@@ -1,11 +1,11 @@
-# AKS profiling — self-hosted Pyroscope
+# AKS profiling -- self-hosted Pyroscope
 
 Continuous OTLP profiling for the AKS demo deployment, decoupled from the
 existing Bindplane gateway pipeline.
 
 ## Architecture
 
-```
+```text
 [ eBPF Profiler DaemonSet ]  --OTLP/gRPC-->  [ Demo otel-collector ]
                                                  |-- traces/metrics/logs -> Bindplane (unchanged)
                                                  +-- profiles ------------> Pyroscope (OTLP/HTTP :4040)
@@ -33,10 +33,12 @@ to enable the `service.profilesSupport` feature gate, add an
    `privileged: true`, and hostPath mounts of `/sys/kernel/debug`,
    `/sys/kernel/tracing`, `/sys/fs/cgroup`, `/proc`. If your demo namespace
    enforces `baseline` or `restricted`, relabel it:
+
    ```sh
    kubectl label ns <demo-namespace> \
      pod-security.kubernetes.io/enforce=privileged --overwrite
    ```
+
 3. **Default StorageClass** for the Pyroscope PVC, or uncomment
    `storageClassName: managed-csi` in `00-pyroscope.yaml`.
 4. **Demo collector reachable as `otel-collector:4317`.** This is the chart's
@@ -103,7 +105,7 @@ datasources:
   `kubectl edit pvc pyroscope-data` (PVCs can grow if the StorageClass
   supports expansion).
 - **Retention**: `max_query_lookback: 7d` in the Pyroscope config. There's no
-  separate retention policy in single-binary mode — disk fills up over time.
+  separate retention policy in single-binary mode -- disk fills up over time.
   For longer retention switch to Pyroscope microservices mode with object
   storage (out of scope here).
 

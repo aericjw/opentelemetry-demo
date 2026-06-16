@@ -1,7 +1,7 @@
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
 
-# Pyroscope (single-binary) — OTLP profile sink for the AKS demo.
+# Pyroscope (single-binary) -- OTLP profile sink for the AKS demo.
 # Profiles in: OTLP/HTTP on :4040 path /v1/profiles
 # UI:         HTTP on :4040  (port-forward or expose via Ingress as needed)
 #
@@ -18,10 +18,10 @@ metadata:
     app.kubernetes.io/component: profiling
 spec:
   accessModes: [ReadWriteOnce]
+  # storageClassName: managed-csi   # uncomment to pin; otherwise uses the AKS default StorageClass
   resources:
     requests:
       storage: 10Gi
-  # storageClassName: managed-csi   # uncomment to pin; otherwise uses the AKS default StorageClass
 
 ---
 apiVersion: v1
