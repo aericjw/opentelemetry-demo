@@ -7,7 +7,6 @@ using Npgsql;
 using Oteldemo;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
-using System.Diagnostics.Metrics;
 
 namespace Accounting;
 
@@ -35,15 +34,6 @@ internal class Consumer : IDisposable
     private bool _isListening;
     private readonly string? _dbConnectionString;
     private static readonly ActivitySource MyActivitySource = new("Accounting.Consumer");
-    private static readonly Meter MyMeter = new("Accounting.Consumer");
-    private static readonly Counter<long> OrdersProcessedCounter = MyMeter.CreateCounter<long>(
-        "demo.accounting.orders.processed",
-        unit: "{order}",
-        description: "Number of orders persisted by the accounting service");
-    private static readonly Histogram<double> AccountingLagHistogram = MyMeter.CreateHistogram<double>(
-        "demo.accounting.lag.ms",
-        unit: "ms",
-        description: "Latency between when the order was produced to Kafka and when accounting processed it");
 
     public Consumer(ILogger<Consumer> logger)
     {
@@ -75,7 +65,7 @@ internal class Consumer : IDisposable
                 {
                     using var activity = MyActivitySource.StartActivity("order-consumed",  ActivityKind.Internal);
                     var consumeResult = _consumer.Consume();
-                    ProcessMessage(consumeResult.Message, activity);
+                    ProcessMessage(consumeResult.Message);
                 }
                 catch (ConsumeException e)
                 {
@@ -94,44 +84,15 @@ internal class Consumer : IDisposable
         }
     }
 
-    private void ProcessMessage(Message<string, byte[]> message, Activity? activity)
+    private void ProcessMessage(Message<string, byte[]> message)
     {
         try
         {
             var order = OrderResult.Parser.ParseFrom(message.Value);
             Log.OrderReceivedMessage(_logger, order);
 
-            // Business attributes: surface order context on the consume span so
-            // Dynatrace can group/filter by order, currency, etc.
-            var totalItems = 0;
-            var totalOrderUsd = 0.0;
-            foreach (var item in order.Items)
-            {
-                totalItems += item.Quantity;
-                totalOrderUsd += (item.Cost.Units + item.Cost.Nanos / 1_000_000_000.0) * item.Quantity;
-            }
-            totalOrderUsd += order.ShippingCost.Units + order.ShippingCost.Nanos / 1_000_000_000.0;
-            var currency = order.ShippingCost.CurrencyCode;
-
-            activity?.SetTag("demo.order.id", order.OrderId);
-            activity?.SetTag("demo.order.amount", totalOrderUsd);
-            activity?.SetTag("demo.order.currency", currency);
-            activity?.SetTag("demo.order.items.count", totalItems);
-
-            // Processing lag from the time the order was written to Kafka.
-            var lagMs = (DateTime.UtcNow - message.Timestamp.UtcDateTime).TotalMilliseconds;
-            if (lagMs >= 0 && lagMs < 24 * 60 * 60 * 1000)
-            {
-                activity?.SetTag("demo.accounting.lag.ms", lagMs);
-                AccountingLagHistogram.Record(lagMs,
-                    new KeyValuePair<string, object?>("currency", currency));
-            }
-
             if (_dbConnectionString == null)
             {
-                OrdersProcessedCounter.Add(1,
-                    new KeyValuePair<string, object?>("currency", currency),
-                    new KeyValuePair<string, object?>("persisted", false));
                 return;
             }
 
@@ -171,23 +132,14 @@ internal class Consumer : IDisposable
             };
             dbContext.Add(shipping);
             dbContext.SaveChanges();
-
-            OrdersProcessedCounter.Add(1,
-                new KeyValuePair<string, object?>("currency", currency),
-                new KeyValuePair<string, object?>("persisted", true));
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
             _logger.LogInformation("Duplicate order received, skipping.");
-            OrdersProcessedCounter.Add(1,
-                new KeyValuePair<string, object?>("currency", "unknown"),
-                new KeyValuePair<string, object?>("persisted", false),
-                new KeyValuePair<string, object?>("reason", "duplicate"));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Order parsing failed:");
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
         }
     }
 

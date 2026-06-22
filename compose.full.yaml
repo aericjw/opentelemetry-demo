@@ -30,8 +30,6 @@ services:
       - OTEL_SERVICE_NAME=accounting
       - DB_CONNECTION_STRING=Host=${POSTGRES_HOST};Username=astronomy_user;Password=${POSTGRES_ASTRONOMY_PASSWORD};Database=astronomy_db
       - OTEL_DOTNET_AUTO_TRACES_ENTITYFRAMEWORKCORE_INSTRUMENTATION_ENABLED=false
-      - OTEL_DOTNET_AUTO_TRACES_ADDITIONAL_SOURCES=Accounting.Consumer
-      - OTEL_DOTNET_AUTO_METRICS_ADDITIONAL_SOURCES=Accounting.Consumer
     depends_on:
       otel-collector:
         condition: service_started

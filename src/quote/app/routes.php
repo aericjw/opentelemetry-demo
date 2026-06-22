@@ -40,29 +40,6 @@ function calculateQuote($jsonObject): float
             ->getMeter('quotes')
             ->createCounter('quotes', 'quotes', 'number of quotes calculated');
         $counter->add(1, ['number_of_items' => $numberOfItems]);
-
-        // Histogram of computed quote value so Dynatrace can analyze shipping-cost
-        // distribution / outliers without re-aggregating from spans.
-        static $costHistogram;
-        $costHistogram ??= Globals::meterProvider()
-            ->getMeter('quotes')
-            ->createHistogram(
-                'demo.shipping.quote.cost.total',
-                'USD',
-                'Distribution of calculated shipping quote totals'
-            );
-        $costHistogram->record($quote, ['number_of_items' => $numberOfItems]);
-
-        // Histogram of item counts per quote request to detect bulk-shipping spikes.
-        static $itemsHistogram;
-        $itemsHistogram ??= Globals::meterProvider()
-            ->getMeter('quotes')
-            ->createHistogram(
-                'demo.shipping.quote.items_count',
-                '{item}',
-                'Distribution of items per shipping quote request'
-            );
-        $itemsHistogram->record($numberOfItems);
     } catch (\Exception $exception) {
         $childSpan->recordException($exception);
     } finally {
@@ -78,18 +55,11 @@ return function (App $app) {
 
         $jsonObject = $request->getParsedBody();
 
-        // Stamp the http server span with business context so it is searchable
-        // without opening the child calculate-quote span.
-        if (is_array($jsonObject) && array_key_exists('numberOfItems', $jsonObject)) {
-            $span->setAttribute('demo.shipping.quote.items_count', intval($jsonObject['numberOfItems']));
-        }
-
         $data = calculateQuote($jsonObject);
 
         $payload = json_encode($data);
         $response->getBody()->write($payload);
 
-        $span->setAttribute('demo.shipping.quote.cost.total', $data);
         $span->addEvent('Quote processed, response sent back', [
             'demo.shipping.quote.cost.total' => $data
         ]);
