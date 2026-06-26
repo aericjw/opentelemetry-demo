@@ -44,6 +44,9 @@ components:
   flagd:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
+    imageOverride:
+      repository: "ghcr.io/open-feature/flagd"
+      tag: "v0.14.2"
   fraud-detection:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
@@ -93,8 +96,8 @@ components:
         cpu: 1000m
         memory: 2Gi
       limits:
-        cpu: 1000m
-        memory: 2Gi
+        cpu: 5000m
+        memory: 4Gi
     envOverrides:
     - name: LOCUST_USERS
       value: "10"
