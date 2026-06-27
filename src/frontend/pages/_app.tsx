@@ -9,6 +9,7 @@ import CartProvider from '../providers/Cart.provider';
 import { ThemeProvider } from 'styled-components';
 import Theme from '../styles/Theme';
 import FrontendTracer from '../utils/telemetry/FrontendTracer';
+import { identifyUser, setSessionProperties } from '../utils/telemetry/Rum';
 import SessionGateway from '../gateways/Session.gateway';
 import { OpenFeatureProvider, OpenFeature } from '@openfeature/react-sdk';
 import { FlagdWebProvider } from '@openfeature/flagd-web-provider';
@@ -28,6 +29,18 @@ if (typeof window !== 'undefined') {
   FrontendTracer();
   if (window.location) {
     const session = SessionGateway.getSession();
+
+    // Associate the Dynatrace RUM session with the storefront user and attach
+    // session-wide properties that are useful for troubleshooting (platform,
+    // service, synthetic traffic) and business analytics (preferred currency).
+    identifyUser(session.userId);
+    setSessionProperties({
+      user_id: session.userId,
+      currency_code: session.currencyCode,
+      platform: window.ENV?.NEXT_PUBLIC_PLATFORM,
+      service_name: window.ENV?.NEXT_PUBLIC_OTEL_SERVICE_NAME,
+      synthetic_request: window.ENV?.IS_SYNTHETIC_REQUEST === 'true',
+    });
 
     // Set context prior to provider init to avoid multiple http calls
     OpenFeature.setContext({ targetingKey: session.userId, ...session }).then(() => {

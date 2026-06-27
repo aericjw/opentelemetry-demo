@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.12.0",
+    "@dynatrace/rum-javascript-sdk": "^1.337.12",
     "@grpc/grpc-js": "1.14.3",
     "@openfeature/flagd-provider": "0.15.1",
     "@openfeature/flagd-web-provider": "0.7.4",

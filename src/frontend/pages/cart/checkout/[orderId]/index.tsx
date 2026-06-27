@@ -5,7 +5,7 @@ import { NextPage } from 'next';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import Ad from '../../../../components/Ad';
 import Button from '../../../../components/Button';
 import Layout from '../../../../components/Layout';
@@ -13,6 +13,7 @@ import ProductPrice from '../../../../components/ProductPrice';
 import Recommendations from '../../../../components/Recommendations';
 import AdProvider from '../../../../providers/Ad.provider';
 import { Money } from '../../../../protos/demo';
+import { sendRumEvent } from '../../../../utils/telemetry/Rum';
 import * as S from '../../../../styles/Checkout.styled';
 import { IProductCheckout } from '../../../../types/Cart';
 
@@ -38,6 +39,20 @@ const Checkout: NextPage = () => {
       currencyCode: shippingCost.currencyCode || 'USD',
     };
   }, [items, shippingCost]);
+
+  // Business analytics: completed purchase (conversion). Fires once per order.
+  useEffect(() => {
+    if (!orderId) return;
+    sendRumEvent('order_completed', {
+      order_id: orderId,
+      item_count: items.length,
+      total_quantity: items.reduce((acc, { item }) => acc + (item?.quantity || 0), 0),
+      order_value: orderTotal.units + orderTotal.nanos / 1_000_000_000,
+      shipping_cost: (shippingCost.units || 0) + (shippingCost.nanos || 0) / 1_000_000_000,
+      currency: orderTotal.currencyCode,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderId]);
 
   return (
     <AdProvider

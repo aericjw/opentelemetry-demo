@@ -58,6 +58,9 @@ components:
   frontend:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
+    envOverrides:
+      - name: PUBLIC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+        value: "http://astroshop.westus2.cloudapp.azure.com:8080/otlp-http"
   frontend-proxy:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
@@ -72,6 +75,8 @@ components:
         value: "8080"
     service:
       type: LoadBalancer
+      annotations:
+        service.beta.kubernetes.io/azure-dns-label-name: astroshop
   image-provider:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"

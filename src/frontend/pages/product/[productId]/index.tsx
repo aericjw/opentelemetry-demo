@@ -14,6 +14,7 @@ import Recommendations from '../../../components/Recommendations';
 import ProductReviews from '../../../components/ProductReviews';
 import Select from '../../../components/Select';
 import { CypressFields } from '../../../utils/enums/CypressFields';
+import { sendRumEvent } from '../../../utils/telemetry/Rum';
 import ApiGateway from '../../../gateways/Api.gateway';
 import { Product } from '../../../protos/demo';
 import AdProvider from '../../../providers/Ad.provider';
@@ -54,13 +55,36 @@ const ProductDetail: NextPage = () => {
     }
   ) as { data: Product };
 
+  const unitPrice = priceUsd.units + priceUsd.nanos / 1_000_000_000;
+
+  // Report a product view once the product details have loaded. Useful for
+  // funnel/business analytics and for correlating slow loads with a product.
+  useEffect(() => {
+    if (!productId || !name) return;
+    sendRumEvent('product_view', {
+      product_id: productId,
+      product_name: name,
+      categories: categories?.join(',') || '',
+      currency: selectedCurrency,
+      unit_price: unitPrice,
+    });
+  }, [productId, name, categories, selectedCurrency, unitPrice]);
+
   const onAddItem = useCallback(async () => {
+    sendRumEvent('add_to_cart', {
+      product_id: productId,
+      product_name: name,
+      quantity,
+      currency: selectedCurrency,
+      unit_price: unitPrice,
+      line_total: unitPrice * quantity,
+    });
     await addItem({
       productId,
       quantity,
     });
     push('/cart');
-  }, [addItem, productId, quantity, push]);
+  }, [addItem, productId, quantity, push, name, selectedCurrency, unitPrice]);
 
   return (
     <AdProvider
