@@ -72,3 +72,6 @@ test/tracetesting/tracetesting-vars.yaml
 /kubernetes/dynatrace-*.yaml
 /kubernetes/bindplane-*.yaml
 /kubernetes/_chart-cache/
+
+# Bluebox
+.env.otel.bluebox-template
