@@ -6,3 +6,4 @@ kubernetes/dynatrace-otel-collector-gateway.yaml
 kubernetes/dynatrace-otel-collector-host-monitoring.yaml
 kubernetes/dynatrace-otel-collector-k8s-monitoring.yaml
 kubernetes/dynatrace-otel-collector-netflow.yaml
+src/agent/fixtures/vcr_cassettes/
