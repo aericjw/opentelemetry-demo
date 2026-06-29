@@ -73,6 +73,10 @@ components:
         value: "firepit"
       - name: FIREPIT_PORT
         value: "8080"
+      - name: CHATBOT_HOST
+        value: "chatbot"
+      - name: CHATBOT_PORT
+        value: "7860"
     service:
       type: LoadBalancer
       annotations:
@@ -154,6 +158,155 @@ components:
   valkey-cart:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
+
+  # ---------------------------------------------------------------------------
+  # Repo-custom services (NOT part of the upstream opentelemetry-demo chart).
+  # The chart's `components` map is generic, so each entry below renders a
+  # Deployment + Service. Images use the default repo/tag convention
+  # (aericjw/opentelemetry-demo:main-<component>); firepit uses an upstream
+  # image override. frontend-proxy is already wired to these hosts/ports above.
+  # ---------------------------------------------------------------------------
+  telemetry-docs:
+    enabled: true
+    useDefault:
+      env: true
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+    service:
+      port: 8080
+    resources:
+      requests:
+        memory: 100Mi
+      limits:
+        memory: 100Mi
+    env:
+      # nginx OTel module reads host/port directly (not OTEL_EXPORTER_OTLP_ENDPOINT)
+      - name: TELEMETRY_DOCS_PORT
+        value: "8080"
+      - name: OTEL_COLLECTOR_HOST
+        value: otel-collector
+      - name: OTEL_COLLECTOR_PORT_GRPC
+        value: "4317"
+
+  firepit:
+    enabled: true
+    useDefault:
+      env: false
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+    imageOverride:
+      repository: ghcr.io/florianl/firepit
+      tag: v0.1.0
+    service:
+      port: 8080
+    env:
+      - name: BASE_PATH
+        value: /profiles
+
+  agent:
+    enabled: true
+    useDefault:
+      env: true
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+    service:
+      port: 8010
+    resources:
+      requests:
+        memory: 500Mi
+      limits:
+        memory: 500Mi
+    env:
+      - name: AGENT_ENDPOINT
+        value: agent
+      - name: AGENT_PORT
+        value: "8010"
+      - name: MCP_ENDPOINT
+        value: mcp
+      - name: MCP_PORT
+        value: "8011"
+      - name: MCP_ENABLED
+        value: "False"
+      - name: GRAPH_RECURSION_LIMIT
+        value: "25"
+      - name: APPLICATION_ENDPOINT
+        value: frontend:8080
+      # VCR cassettes are a Compose volume (not baked into the image), so use a
+      # real LLM on AKS. Reuses the same secret as product-reviews.
+      - name: USE_VCR
+        value: "False"
+      - name: LLM_TLS_VERIFY
+        value: "True"
+      - name: LLM_BASE_URL
+        value: "https://api.anthropic.com/v1/"
+      - name: LLM_MODEL
+        value: claude-haiku-4-5
+      - name: API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: anthropic-api-key
+            key: ANTHROPIC_API_KEY
+      - name: OPENAI_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: anthropic-api-key
+            key: ANTHROPIC_API_KEY
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: $(OTEL_COLLECTOR_NAME):4317
+      - name: OTEL_EXPORTER_OTLP_INSECURE
+        value: "true"
+
+  mcp:
+    enabled: true
+    useDefault:
+      env: true
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+    service:
+      port: 8011
+    resources:
+      requests:
+        memory: 500Mi
+      limits:
+        memory: 500Mi
+    env:
+      - name: MCP_ENDPOINT
+        value: mcp
+      - name: MCP_PORT
+        value: "8011"
+      - name: APPLICATION_ENDPOINT
+        value: frontend:8080
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: $(OTEL_COLLECTOR_NAME):4317
+      - name: OTEL_EXPORTER_OTLP_INSECURE
+        value: "true"
+
+  chatbot:
+    enabled: true
+    useDefault:
+      env: true
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+    service:
+      port: 7860
+    resources:
+      requests:
+        memory: 500Mi
+      limits:
+        memory: 500Mi
+    env:
+      - name: CHATBOT_PORT
+        value: "7860"
+      - name: CHATBOT_ROOT_PATH
+        value: /chatbot
+      - name: AGENT_ENDPOINT
+        value: agent
+      - name: AGENT_PORT
+        value: "8010"
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: $(OTEL_COLLECTOR_NAME):4317
+      - name: OTEL_EXPORTER_OTLP_INSECURE
+        value: "true"
 opensearch:
   enabled: false
 jaeger:

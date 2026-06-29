@@ -49,9 +49,16 @@ to enable the `service.profilesSupport` feature gate, add an
 ## Install
 
 ```sh
-# 1. Apply the upstream Helm release with the patched values file (adds the
+# 1. Apply the Helm release with the patched values file (adds the
 #    profiles pipeline + service.profilesSupport feature gate).
-helm upgrade --install <release> open-telemetry/opentelemetry-demo \
+#
+#    NOTE: deploy from the vendored chart at kubernetes/_chart-cache, NOT the
+#    remote `open-telemetry/opentelemetry-demo` repo. The vendored copy is the
+#    same chart version but relaxes the `components` JSON schema so the
+#    repo-custom services (telemetry-docs, firepit, agent, mcp, chatbot) pass
+#    validation. Using the remote chart fails with:
+#      at '/components': additional properties '...' not allowed
+helm upgrade --install <release> kubernetes/_chart-cache/opentelemetry-demo \
   -n <demo-namespace> \
   -f kubernetes/my-values-file.yaml
 
