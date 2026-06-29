@@ -129,16 +129,16 @@ components:
         memory: 200Mi
       limits:
         memory: 200Mi
-    envOverrides:
-    - name: LLM_MODEL
-      value: claude-haiku-4-5
-    - name: LLM_BASE_URL
-      value: "https://api.anthropic.com/v1/"
-    - name: OPENAI_API_KEY
-      valueFrom:
-        secretKeyRef:
-          name: anthropic-api-key
-          key: ANTHROPIC_API_KEY
+    # envOverrides:
+    # - name: LLM_MODEL
+    #   value: claude-haiku-4-5
+    # - name: LLM_BASE_URL
+    #   value: "https://api.anthropic.com/v1/"
+    # - name: OPENAI_API_KEY
+    #   valueFrom:
+    #     secretKeyRef:
+    #       name: anthropic-api-key
+    #       key: ANTHROPIC_API_KEY
   quote:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
@@ -197,12 +197,14 @@ components:
     imageOverride:
       repository: ghcr.io/florianl/firepit
       tag: v0.1.0
-    service:
-      port: 8080
     env:
       - name: BASE_PATH
         value: /profiles
-
+    ports:
+      - name: http
+        value: 8080
+      - name: otlp-grpc
+        value: 4317
   agent:
     enabled: true
     useDefault:
@@ -236,21 +238,21 @@ components:
       - name: USE_VCR
         value: "False"
       - name: LLM_TLS_VERIFY
-        value: "True"
-      - name: LLM_BASE_URL
-        value: "https://api.anthropic.com/v1/"
-      - name: LLM_MODEL
-        value: claude-haiku-4-5
-      - name: API_KEY
-        valueFrom:
-          secretKeyRef:
-            name: anthropic-api-key
-            key: ANTHROPIC_API_KEY
-      - name: OPENAI_API_KEY
-        valueFrom:
-          secretKeyRef:
-            name: anthropic-api-key
-            key: ANTHROPIC_API_KEY
+        value: "False"
+      # - name: LLM_BASE_URL
+      #   value: "https://api.anthropic.com/v1/"
+      # - name: LLM_MODEL
+      #   value: claude-haiku-4-5
+      # - name: API_KEY
+      #   valueFrom:
+      #     secretKeyRef:
+      #       name: anthropic-api-key
+      #       key: ANTHROPIC_API_KEY
+      # - name: OPENAI_API_KEY
+      #   valueFrom:
+      #     secretKeyRef:
+      #       name: anthropic-api-key
+      #       key: ANTHROPIC_API_KEY
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: $(OTEL_COLLECTOR_NAME):4317
       - name: OTEL_EXPORTER_OTLP_INSECURE
@@ -307,6 +309,7 @@ components:
         value: $(OTEL_COLLECTOR_NAME):4317
       - name: OTEL_EXPORTER_OTLP_INSECURE
         value: "true"
+
 opensearch:
   enabled: false
 jaeger:
@@ -334,7 +337,7 @@ opentelemetry-collector:
           enabled: true
   resources:
     limits:
-      memory: 200Mi
+      memory: 300Mi
   service:
     enabled: true
   ports:
@@ -373,8 +376,8 @@ opentelemetry-collector:
         endpoint: "bindplane-gateway-agent.bindplane-agent.svc.cluster.local:4317"
         tls:
           insecure: true
-      otlphttp/pyroscope:
-        endpoint: http://pyroscope:4040
+      otlp_grpc/firepit:
+        endpoint: "firepit:4317"
         tls:
           insecure: true
       debug:
@@ -480,6 +483,10 @@ opentelemetry-collector:
               - set(attributes["k8s.workload.name"], attributes["k8s.deployment.name"]) where IsString(attributes["k8s.deployment.name"])
         metric_statements: *dynatrace_transformations
         log_statements: *dynatrace_transformations
+      filter/profiles:
+        error_mode: ignore
+        profile_conditions:
+          - resource.attributes["k8s.namespace.name"] != "astroshop"
       cumulativetodelta: {}
     
     connectors:
@@ -500,5 +507,5 @@ opentelemetry-collector:
           exporters: [otlp, debug]
         profiles:
           receivers: [otlp]
-          processors: [memory_limiter, resourcedetection, k8sattributes, resource]
-          exporters: [otlphttp/pyroscope, debug]
+          processors: [memory_limiter, resourcedetection, k8sattributes, resource, filter/profiles]
+          exporters: [otlp_grpc/firepit, debug]
