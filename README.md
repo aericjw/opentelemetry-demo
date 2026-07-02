@@ -76,13 +76,13 @@ Three additional [feature flags](src/flagd/demo.flagd.json) inject genuine
 PostgreSQL problems into the product reviews service (toggle them in the
 flagd UI at `http://localhost:8080/feature`):
 
-- `postgresConnectionFailure` — a configurable fraction of database
+- `postgresConnectionFailure` - a configurable fraction of database
   connections is attempted with stale credentials, producing real Postgres
   authentication errors (simulates a credential rotation gone wrong).
-- `postgresSlowQueries` — adds real database-side latency (`pg_sleep`) to
+- `postgresSlowQueries` - adds real database-side latency (`pg_sleep`) to
   review queries, visible to database monitoring via `pg_stat_statements`,
   not just as slow client spans.
-- `postgresSchemaDrift` — the service queries a column and table that only
+- `postgresSchemaDrift` - the service queries a column and table that only
   exist in a newer schema version, producing genuine undefined-column /
   undefined-table errors (simulates a migration that was never applied).
 
@@ -109,7 +109,7 @@ layer:
 
 ```shell
 export DYNATRACE_ENDPOINT=https://abc12345.live.dynatrace.com
-export DYNATRACE_API_TOKEN=dt0c01.…   # scopes: openTelemetryTrace.ingest, metrics.ingest, logs.ingest
+export DYNATRACE_API_TOKEN=dt0c01...  # scopes: openTelemetryTrace.ingest, metrics.ingest, logs.ingest
 docker compose -f compose.yaml -f compose.full.yaml \
                -f compose.observability.yaml \
                -f compose.dynatrace.yaml \

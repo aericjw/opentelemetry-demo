@@ -333,11 +333,12 @@ class WebsiteUser(HttpUser):
             ctx = baggage.set_baggage(key, value, context=ctx)
         self.session_ctx = ctx
         context.attach(ctx)
-        with self.tracer.start_as_current_span("user_session_start", context=self.session_context(),
-                                               attributes=self.customer_attributes()):
-            logging.info(f"Starting user session: {session_id} for customer {self.customer['customer.id']} "
-                         f"({self.customer['customer.loyalty_level']} {self.customer['customer.type']}, "
-                         f"campaign={self.customer['customer.acquisition_campaign']}, channel={self.customer['customer.channel']})")
+        with self.tracer.start_as_current_span(
+                "user_session_start", context=self.session_context(), attributes=self.customer_attributes()):
+            logging.info(
+                f"Starting user session: {session_id} for customer {self.customer['customer.id']} "
+                f"({self.customer['customer.loyalty_level']} {self.customer['customer.type']}, "
+                f"campaign={self.customer['customer.acquisition_campaign']}, channel={self.customer['customer.channel']})")
             self.index()
 
 
