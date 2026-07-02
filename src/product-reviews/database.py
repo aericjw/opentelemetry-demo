@@ -4,11 +4,18 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Python
+import logging
 import os
+import random
 import simplejson as json
 
 # Postgres
 import psycopg2
+
+# Feature flags
+from openfeature import api
+
+logger = logging.getLogger('main')
 
 def must_map_env(key: str):
     value = os.environ.get(key)
@@ -18,6 +25,44 @@ def must_map_env(key: str):
 
 # Retrieve Postgres environment variables
 db_connection_str = must_map_env('DB_CONNECTION_STRING')
+
+def _flag_number(flag_name, default=0.0):
+    """Evaluate a numeric feature flag, never failing the request path."""
+    try:
+        return api.get_client().get_float_value(flag_name, default)
+    except Exception:
+        return default
+
+def _flag_bool(flag_name):
+    try:
+        return api.get_client().get_boolean_value(flag_name, False)
+    except Exception:
+        return False
+
+def get_connection():
+    """Open a database connection, honoring the postgresConnectionFailure flag.
+
+    When the flag is enabled, the given fraction of connection attempts is made
+    with a stale password -- simulating a credential rotation gone wrong -- so
+    Postgres itself rejects the connection with a genuine authentication error
+    that also surfaces in the database server logs.
+    """
+    connection_str = db_connection_str
+    failure_rate = _flag_number("postgresConnectionFailure")
+    if failure_rate > 0 and random.random() < failure_rate:
+        logger.warning("postgresConnectionFailure flag is enabled: connecting with stale credentials")
+        # libpq uses the last occurrence of a repeated connection parameter
+        connection_str = db_connection_str + " password=stale-rotated-credential"
+    return psycopg2.connect(connection_str, connect_timeout=5)
+
+def _apply_slow_queries(cursor):
+    """Honor the postgresSlowQueries flag by burning real database-side time
+    (pg_sleep) on the connection, so the slowdown is visible to database
+    monitoring (pg_stat_statements, db spans), not just the client."""
+    delay_seconds = _flag_number("postgresSlowQueries")
+    if delay_seconds > 0:
+        logger.warning(f"postgresSlowQueries flag is enabled: adding {delay_seconds}s of database latency")
+        cursor.execute("SELECT pg_sleep(%s)", (delay_seconds,))
 
 def fetch_product_reviews(product_id):
     try:
@@ -30,11 +75,18 @@ def fetch_product_reviews_from_db(request_product_id):
     connection = None
 
     try:
-        with psycopg2.connect(db_connection_str) as connection:
+        with get_connection() as connection:
 
             with connection.cursor() as cursor:
+                _apply_slow_queries(cursor)
+
                 # Define the SQL query
                 query = "SELECT username, description, score FROM reviews.productreviews WHERE product_id= %s"
+                if _flag_bool("postgresSchemaDrift"):
+                    # The service expects the reviews schema v2, which adds a
+                    # helpful_votes column. The migration was never applied, so
+                    # Postgres rejects the query with an undefined-column error.
+                    query = "SELECT username, description, score, helpful_votes FROM reviews.productreviews WHERE product_id= %s"
 
                 # Execute the query
                 cursor.execute(query, (request_product_id, ))
@@ -57,11 +109,18 @@ def fetch_avg_product_review_score_from_db(request_product_id):
     connection = None
 
     try:
-        with psycopg2.connect(db_connection_str) as connection:
+        with get_connection() as connection:
 
             with connection.cursor() as cursor:
+                _apply_slow_queries(cursor)
+
                 # Define the SQL query
                 query = "SELECT AVG(score) FROM reviews.productreviews WHERE product_id= %s"
+                if _flag_bool("postgresSchemaDrift"):
+                    # Schema v2 moves aggregated scores into a summary table
+                    # that does not exist in this database, so Postgres
+                    # rejects the query with an undefined-table error.
+                    query = "SELECT avg_score FROM reviews.productreviews_summary WHERE product_id= %s"
 
                 # Execute the query
                 cursor.execute(query, (request_product_id, ))
