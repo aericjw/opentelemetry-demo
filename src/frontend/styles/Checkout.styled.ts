@@ -4,10 +4,12 @@
 import styled from 'styled-components';
 
 export const Checkout = styled.div`
-  margin: 20px;
+  margin: 24px 20px;
+  max-width: 1320px;
 
   ${({ theme }) => theme.breakpoints.desktop} {
-    margin: 100px;
+    margin: 56px auto;
+    padding: 0 40px;
   }
 `;
 
@@ -41,6 +43,7 @@ export const LeftColumn = styled.div`
 export const SectionTitle = styled.h4`
   margin: 0 0 12px 0;
   font-size: ${({ theme }) => theme.sizes.mLarge};
+  font-weight: ${({ theme }) => theme.fonts.semiBold};
   color: ${({ theme }) => theme.colors.textGray};
   text-align: left;
 `;
@@ -49,9 +52,10 @@ export const RightColumn = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 20px;
-  background-color: ${({ theme }) => theme.colors.backgroundGray};
-  border-radius: 8px;
+  padding: 24px;
+  background-color: ${({ theme }) => theme.colors.white};
+  border: 1px solid ${({ theme }) => theme.colors.lightBorderGray};
+  border-radius: 16px;
 
   ${({ theme }) => theme.breakpoints.desktop} {
     grid-area: right;

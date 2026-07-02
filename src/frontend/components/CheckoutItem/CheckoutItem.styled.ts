@@ -7,9 +7,11 @@ import styled from 'styled-components';
 export const CheckoutItem = styled.div`
   display: grid;
   grid-template-columns: 1fr;
-  padding: 25px;
-  border-radius: 5px;
+  padding: 24px;
+  border-radius: 16px;
+  background: ${({ theme }) => theme.colors.white};
   border: 1px solid ${({ theme }) => theme.colors.lightBorderGray};
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 
   ${({ theme }) => theme.breakpoints.desktop} {
     grid-template-columns: 40% 40% 1fr;

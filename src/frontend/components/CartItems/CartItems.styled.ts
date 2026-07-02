@@ -29,8 +29,10 @@ export const CardItemsHeader = styled.div`
 export const CartItemImage = styled.img`
   width: 100%;
   height: auto;
-  border-radius: 5px;
+  border-radius: 12px;
   object-fit: contain;
+  background: #f6f7fb;
+  padding: 8px;
 
   ${({ theme }) => theme.breakpoints.desktop} {
     width: 120px;
@@ -44,7 +46,7 @@ export const CartItem = styled.div`
   gap: 24px;
   padding: 24px 0;
   align-items: center;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.textLightGray};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.lightBorderGray};
 
   ${({ theme }) => theme.breakpoints.desktop} {
     grid-template-columns: 1fr 120px 110px 110px;
@@ -94,4 +96,5 @@ export const DataRow = styled.div`
 
 export const TotalText = styled.h3`
   margin: 0;
+  font-weight: ${({ theme }) => theme.fonts.bold};
 `;

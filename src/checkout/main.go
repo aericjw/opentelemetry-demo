@@ -19,7 +19,10 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/baggage"
+	otellog "go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/log/global"
+	"go.opentelemetry.io/otel/metric"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 	"go.opentelemetry.io/otel/trace"
 
@@ -66,11 +69,39 @@ import (
 //go:generate openfeature generate -o flags --package-name flags go
 
 var (
-	logger            *slog.Logger
-	tracer            trace.Tracer
-	resource          *sdkresource.Resource
-	initResourcesOnce sync.Once
+	logger              *slog.Logger
+	tracer              trace.Tracer
+	eventLogger         otellog.Logger
+	ordersCounter       metric.Int64Counter
+	orderRevenueCounter metric.Float64Counter
+	resource            *sdkresource.Resource
+	initResourcesOnce   sync.Once
 )
+
+// Baggage entries set by upstream callers (frontend, load generator) that
+// carry business context, mapped to the span/log attribute names used across
+// the demo. Enriching backend telemetry with this context is what enables
+// business-level observability (revenue per loyalty tier, campaign
+// performance, etc.) on ordinary application traces.
+var customerBaggageAttributes = map[string]string{
+	"session.id":                    "session.id",
+	"enduser.id":                    "enduser.id",
+	"customer.loyalty_level":        "demo.user_context.loyalty_level",
+	"customer.type":                 "demo.user_context.customer_type",
+	"customer.acquisition_campaign": "demo.user_context.acquisition_campaign",
+	"customer.channel":              "demo.user_context.channel",
+}
+
+func customerContextAttributes(ctx context.Context) []attribute.KeyValue {
+	bags := baggage.FromContext(ctx)
+	var attrs []attribute.KeyValue
+	for baggageKey, attrKey := range customerBaggageAttributes {
+		if value := bags.Member(baggageKey).Value(); value != "" {
+			attrs = append(attrs, attribute.String(attrKey, value))
+		}
+	}
+	return attrs
+}
 
 func initResource() *sdkresource.Resource {
 	initResourcesOnce.Do(func() {
@@ -205,6 +236,21 @@ func main() {
 	openfeature.AddHooks(otelhooks.NewTracesHook())
 
 	tracer = tp.Tracer("checkout")
+	eventLogger = global.GetLoggerProvider().Logger("checkout")
+
+	meter := mp.Meter("checkout")
+	ordersCounter, err = meter.Int64Counter("demo.orders",
+		metric.WithDescription("Number of orders, by outcome, currency, and loyalty level"),
+		metric.WithUnit("{order}"))
+	if err != nil {
+		logger.Error("failed to create demo.orders counter", slog.Any("error", err))
+	}
+	orderRevenueCounter, err = meter.Float64Counter("demo.order.revenue",
+		metric.WithDescription("Gross revenue of placed orders, by currency and loyalty level"),
+		metric.WithUnit("1"))
+	if err != nil {
+		logger.Error("failed to create demo.order.revenue counter", slog.Any("error", err))
+	}
 
 	svc := new(checkout)
 	svc.httpClient = &http.Client{
@@ -305,6 +351,8 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		attribute.String("user.id", req.UserId),
 		attribute.String("demo.user_context.selected_currency", req.UserCurrency),
 	)
+	customerAttrs := customerContextAttributes(ctx)
+	span.SetAttributes(customerAttrs...)
 	logger.LogAttrs(
 		ctx,
 		slog.LevelInfo, "[PlaceOrder]",
@@ -343,6 +391,7 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 
 	txID, err := cs.chargeCard(ctx, total, req.CreditCard)
 	if err != nil {
+		recordOrderOutcome(ctx, req.UserCurrency, "payment_failed", 0)
 		return nil, status.Errorf(codes.Internal, "failed to charge card: %+v", err)
 	}
 
@@ -391,6 +440,9 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		slog.String("demo.shipping.tracking.id", shippingTrackingID),
 	)
 
+	recordOrderOutcome(ctx, req.UserCurrency, "placed", totalPriceFloat)
+	emitOrderPlacedEvent(ctx, orderResult, totalPriceFloat, shippingCostFloat, req.UserCurrency, customerAttrs)
+
 	if err := cs.sendOrderConfirmation(ctx, req.Email, orderResult); err != nil {
 		logger.Warn(fmt.Sprintf("failed to send order confirmation: %+v", err))
 	} else {
@@ -405,6 +457,62 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 
 	resp := &pb.PlaceOrderResponse{Order: orderResult}
 	return resp, nil
+}
+
+// recordOrderOutcome updates the business KPI metrics for an order attempt.
+// Loyalty level is taken from baggage so revenue and conversion can be split
+// by customer segment without high-cardinality attributes.
+func recordOrderOutcome(ctx context.Context, currency, outcome string, amount float64) {
+	loyaltyLevel := baggage.FromContext(ctx).Member("customer.loyalty_level").Value()
+	if loyaltyLevel == "" {
+		loyaltyLevel = "unknown"
+	}
+	metricAttrs := metric.WithAttributes(
+		attribute.String("demo.order.currency", currency),
+		attribute.String("demo.order.outcome", outcome),
+		attribute.String("demo.user_context.loyalty_level", loyaltyLevel),
+	)
+	if ordersCounter != nil {
+		ordersCounter.Add(ctx, 1, metricAttrs)
+	}
+	if orderRevenueCounter != nil && amount > 0 {
+		orderRevenueCounter.Add(ctx, amount, metricAttrs)
+	}
+}
+
+// emitOrderPlacedEvent emits a structured "order.placed" log event carrying
+// the full business payload of the order. Backends that support business
+// events (e.g. Dynatrace bizevents) can key off the event name and correlate
+// it to the trace it was emitted under.
+func emitOrderPlacedEvent(ctx context.Context, order *pb.OrderResult, totalPrice, shippingCost float64, currency string, customerAttrs []attribute.KeyValue) {
+	if eventLogger == nil {
+		return
+	}
+	var record otellog.Record
+	record.SetTimestamp(time.Now())
+	record.SetEventName("order.placed")
+	record.SetSeverity(otellog.SeverityInfo)
+	record.SetSeverityText("INFO")
+	record.SetBody(otellog.StringValue("order placed"))
+
+	attrs := []otellog.KeyValue{
+		otellog.String("demo.order.id", order.GetOrderId()),
+		otellog.Float64("demo.order.amount", totalPrice),
+		otellog.String("demo.order.currency", currency),
+		otellog.Int("demo.order.items.count", len(order.GetItems())),
+		otellog.Float64("demo.shipping.amount", shippingCost),
+		otellog.String("demo.shipping.tracking.id", order.GetShippingTrackingId()),
+	}
+	var totalUnits int64
+	for _, item := range order.GetItems() {
+		totalUnits += int64(item.GetItem().GetQuantity())
+	}
+	attrs = append(attrs, otellog.Int64("demo.order.units.count", totalUnits))
+	for _, kv := range customerAttrs {
+		attrs = append(attrs, otellog.String(string(kv.Key), kv.Value.Emit()))
+	}
+	record.AddAttributes(attrs...)
+	eventLogger.Emit(ctx, record)
 }
 
 type orderPrep struct {

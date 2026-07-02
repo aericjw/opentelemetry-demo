@@ -169,6 +169,38 @@
         "off": 0
       },
       "defaultVariant": "off"
+    },
+    "postgresConnectionFailure": {
+      "description": "Fail product reviews database connections n% of the time with authentication errors, simulating a credential rotation gone wrong",
+      "state": "ENABLED",
+      "variants": {
+        "100%": 1,
+        "50%": 0.5,
+        "25%": 0.25,
+        "10%": 0.1,
+        "off": 0
+      },
+      "defaultVariant": "off"
+    },
+    "postgresSlowQueries": {
+      "description": "Slows down product reviews database queries by the given number of seconds of real database-side latency (pg_sleep)",
+      "state": "ENABLED",
+      "variants": {
+        "10sec": 10,
+        "3sec": 3,
+        "1sec": 1,
+        "off": 0
+      },
+      "defaultVariant": "off"
+    },
+    "postgresSchemaDrift": {
+      "description": "Product reviews queries expect a newer database schema (missing column/table), simulating a migration that was never applied",
+      "state": "ENABLED",
+      "variants": {
+        "on": true,
+        "off": false
+      },
+      "defaultVariant": "off"
     }
   }
 }

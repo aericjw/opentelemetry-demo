@@ -1,0 +1,44 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# Dynatrace export layer: ships traces, metrics, and logs to a Dynatrace
+# environment via OTLP/HTTP, alongside the default observability stack.
+# Loaded when running with compose.dynatrace.yaml.
+#
+# Required environment variables (see compose.dynatrace.yaml):
+#   DYNATRACE_ENDPOINT   e.g. https://abc12345.live.dynatrace.com
+#                        (ActiveGate: https://<host>:9999/e/<env-id>)
+#   DYNATRACE_API_TOKEN  API token with the openTelemetryTrace.ingest,
+#                        metrics.ingest, and logs.ingest scopes
+#
+# This layer is designed to be loaded AFTER otelcol-config-observability.yml
+# (core -> full -> observability -> dynatrace -> extras). The OTel Collector
+# merges config files but REPLACES arrays, so the pipeline definitions below
+# repeat the upstream processor and exporter names to keep them active.
+#
+# Dynatrace only accepts metrics with delta temporality, while the local
+# Prometheus requires cumulative. Metrics are therefore exported through a
+# dedicated pipeline that converts them with the cumulativetodelta processor,
+# leaving the default metrics pipeline untouched.
+
+exporters:
+  otlphttp/dynatrace:
+    endpoint: ${env:DYNATRACE_ENDPOINT}/api/v2/otlp
+    headers:
+      Authorization: Api-Token ${env:DYNATRACE_API_TOKEN}
+    sending_queue:
+      batch:
+
+processors:
+  cumulativetodelta:
+
+service:
+  pipelines:
+    traces:
+      exporters: [debug, otlp_grpc/jaeger, span_metrics, otlphttp/dynatrace]
+    metrics/dynatrace:
+      receivers: [docker_stats, http_check/frontend-proxy, host_metrics, nginx, otlp, redis, postgresql, prometheus/ad, span_metrics, kafkametrics]
+      processors: [resourcedetection, memory_limiter, cumulativetodelta]
+      exporters: [otlphttp/dynatrace]
+    logs:
+      exporters: [debug, opensearch, otlphttp/dynatrace]

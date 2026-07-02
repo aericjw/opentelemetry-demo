@@ -1,0 +1,40 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# Dynatrace layer: patches the otel-collector to export traces, metrics, and
+# logs to a Dynatrace environment via OTLP, alongside the default
+# observability stack.
+#
+# Required environment variables (export them or add them to an untracked
+# .env.override file -- never commit tokens):
+#   DYNATRACE_ENDPOINT   e.g. https://abc12345.live.dynatrace.com
+#                        (ActiveGate: https://<host>:9999/e/<env-id>)
+#   DYNATRACE_API_TOKEN  API token with the openTelemetryTrace.ingest,
+#                        metrics.ingest, and logs.ingest scopes
+#
+# Usage:
+#   docker compose -f compose.yaml -f compose.full.yaml \
+#                  -f compose.observability.yaml \
+#                  -f compose.dynatrace.yaml \
+#                  -f compose.extras.yaml up
+
+services:
+  otel-collector:
+    command:
+      - "--config=/etc/otelcol-config.yml"
+      - "--config=/etc/otelcol-config-full.yml"
+      - "--config=/etc/otelcol-config-observability.yml"
+      - "--config=/etc/otelcol-config-dynatrace.yml"
+      - "--config=/etc/otelcol-config-extras.yml"
+      - "--feature-gates=service.profilesSupport"
+    volumes:
+      - ${HOST_FILESYSTEM}:/hostfs:ro
+      - ${DOCKER_SOCK}:/var/run/docker.sock:ro
+      - ${OTEL_COLLECTOR_CONFIG}:/etc/otelcol-config.yml
+      - ${OTEL_COLLECTOR_CONFIG_FULL}:/etc/otelcol-config-full.yml
+      - ${OTEL_COLLECTOR_CONFIG_OBSERVABILITY}:/etc/otelcol-config-observability.yml
+      - ${OTEL_COLLECTOR_CONFIG_DYNATRACE}:/etc/otelcol-config-dynatrace.yml
+      - ${OTEL_COLLECTOR_CONFIG_EXTRAS}:/etc/otelcol-config-extras.yml
+    environment:
+      - DYNATRACE_ENDPOINT=${DYNATRACE_ENDPOINT:?set DYNATRACE_ENDPOINT to your Dynatrace environment URL, e.g. https://abc12345.live.dynatrace.com}
+      - DYNATRACE_API_TOKEN=${DYNATRACE_API_TOKEN:?set DYNATRACE_API_TOKEN to an API token with openTelemetryTrace.ingest, metrics.ingest, and logs.ingest scopes}

@@ -5,21 +5,22 @@ import Link from 'next/link';
 import styled from 'styled-components';
 
 export const Header = styled.header`
-  background-color: #853b5c;
-  color: white;
+  position: sticky;
+  top: 0;
+  z-index: 100;
 `;
 
 export const NavBar = styled.nav`
-  height: 80px;
-  background-color: white;
+  height: 72px;
+  background-color: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
   font-size: 15px;
-  color: #b4b2bb;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.textGray};
-  z-index: 1;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.lightBorderGray};
   padding: 0;
 
   ${({ theme }) => theme.breakpoints.desktop} {
-    height: 100px;
+    height: 80px;
   }
 `;
 
@@ -28,11 +29,13 @@ export const Container = styled.div`
   justify-content: space-between;
   align-items: center;
   width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
   height: 100%;
   padding: 0 20px;
 
   ${({ theme }) => theme.breakpoints.desktop} {
-    padding: 25px 100px;
+    padding: 0 64px;
   }
 `;
 
@@ -45,11 +48,16 @@ export const NavBarBrand = styled(Link)`
 export const BrandImg = styled.img.attrs({
   src: '/images/opentelemetry-demo-logo.png',
 })`
-  width: 280px;
+  width: 190px;
   height: auto;
+
+  ${({ theme }) => theme.breakpoints.desktop} {
+    width: 230px;
+  }
 `;
 
 export const Controls = styled.div`
   display: flex;
-  height: 60px;
+  align-items: center;
+  gap: 4px;
 `;

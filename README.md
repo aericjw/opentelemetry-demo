@@ -47,6 +47,81 @@ your preferred deployment method:
 - [Docker](https://opentelemetry.io/docs/demo/docker_deployment/)
 - [Kubernetes](https://opentelemetry.io/docs/demo/kubernetes_deployment/)
 
+## Enterprise observability additions in this fork
+
+This fork extends the upstream demo to better resemble a complex enterprise
+environment, with a focus on business observability, AI observability, and
+OpenTelemetry ingest into Dynatrace.
+
+### Business observability
+
+- The load generator simulates a weighted customer population: every session
+  gets a customer profile (loyalty level, customer type, acquisition campaign,
+  channel) that is propagated downstream via W3C baggage and drives realistic
+  purchase behavior (premium-product affinity, basket sizes, cart
+  abandonment).
+- The checkout service enriches spans and logs with the customer context from
+  baggage, emits an `order.placed` log event carrying the full business
+  payload of each order (maps directly to business events / bizevents in
+  backends that support them), and records `demo.orders` and
+  `demo.order.revenue` metrics split by outcome, currency, and loyalty level.
+- The payment service records `demo.payment.transactions` by outcome and
+  decline reason (invalid card, unsupported brand, expired card, gateway
+  token errors) plus a `demo.payment.transaction.amount` histogram, all
+  segmented by the same customer context.
+
+### Database failure scenarios
+
+Three additional [feature flags](src/flagd/demo.flagd.json) inject genuine
+PostgreSQL problems into the product reviews service (toggle them in the
+flagd UI at `http://localhost:8080/feature`):
+
+- `postgresConnectionFailure` — a configurable fraction of database
+  connections is attempted with stale credentials, producing real Postgres
+  authentication errors (simulates a credential rotation gone wrong).
+- `postgresSlowQueries` — adds real database-side latency (`pg_sleep`) to
+  review queries, visible to database monitoring via `pg_stat_statements`,
+  not just as slow client spans.
+- `postgresSchemaDrift` — the service queries a column and table that only
+  exist in a newer schema version, producing genuine undefined-column /
+  undefined-table errors (simulates a migration that was never applied).
+
+### AI observability
+
+- The LLM-powered shopping agent (LangGraph + MCP + chatbot, see
+  `compose.agent.yaml`) is instrumented with OpenLLMetry and emits
+  `gen_ai.*` semantic-convention spans.
+- The agent uses a multi-step, multi-agent architecture that mirrors how
+  enterprise assistants are built: a routing supervisor classifies each
+  request, hands it to a specialist sub-agent with a scoped toolset (product
+  discovery specialist, order concierge, or generalist), and a grounding
+  guardrail reviews the draft answer for hallucinated products, prices, or
+  promotions, triggering one self-correction pass when it fails. A single
+  chat request therefore produces a realistic trace of chained LLM
+  interactions and tool calls, annotated with `demo.agent.route` and
+  `demo.agent.guardrail.verdict` attributes.
+
+### Dynatrace
+
+Export all traces, metrics, and logs to a Dynatrace environment (in addition
+to the bundled Jaeger/Prometheus/OpenSearch stack) with the opt-in Dynatrace
+layer:
+
+```shell
+export DYNATRACE_ENDPOINT=https://abc12345.live.dynatrace.com
+export DYNATRACE_API_TOKEN=dt0c01.…   # scopes: openTelemetryTrace.ingest, metrics.ingest, logs.ingest
+docker compose -f compose.yaml -f compose.full.yaml \
+               -f compose.observability.yaml \
+               -f compose.dynatrace.yaml \
+               -f compose.extras.yaml up
+```
+
+Metrics are converted to delta temporality for Dynatrace in a dedicated
+collector pipeline (`src/otel-collector/otelcol-config-dynatrace.yml`) while
+the local Prometheus keeps receiving cumulative data. Frontend RUM and the
+React Native app integrate the Dynatrace RUM agents, and
+`kubernetes/my-values-file.yaml` shows the equivalent Kubernetes setup.
+
 ## Documentation
 
 For detailed documentation, see [Demo Documentation][docs]. If you're curious

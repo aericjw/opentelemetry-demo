@@ -7,6 +7,31 @@ the release.
 
 ## Unreleased
 
+* [load-generator] Simulate a weighted customer population (loyalty level,
+  customer type, acquisition campaign, channel) propagated via W3C baggage,
+  with tier-driven purchase behavior and a cart-abandonment task
+* [checkout] Enrich spans/logs with customer context from baggage, emit an
+  `order.placed` business event log record, and record `demo.orders` and
+  `demo.order.revenue` metrics by outcome, currency, and loyalty level
+* [payment] Record transaction outcomes with decline reasons and amounts
+  (`demo.payment.transactions`, `demo.payment.transaction.amount`), segmented
+  by customer context from baggage
+* [agent] Rework the shopping agent into a multi-agent workflow: routing
+  supervisor, specialist sub-agents with scoped toolsets (product specialist,
+  order concierge, generalist), and a grounding guardrail with one
+  self-correction pass
+* [flagd] Add `postgresConnectionFailure`, `postgresSlowQueries`, and
+  `postgresSchemaDrift` feature flags that inject genuine PostgreSQL failures
+  into the product reviews service
+* [otel-collector] Add an opt-in Dynatrace export layer
+  (`compose.dynatrace.yaml` + `otelcol-config-dynatrace.yml`) shipping
+  traces, metrics (delta temporality), and logs via OTLP
+* [frontend] Redesign the storefront with a modern, professional look: Inter
+  typography, navy/indigo/amber theme, sticky translucent header, star-field
+  hero, elevated product cards, and refreshed forms, cart, checkout, and
+  footer
+* [all] Add `deployment.environment.name` resource attribute via
+  `OTEL_RESOURCE_ATTRIBUTES`
 * [frontend-proxy] Use the asynchronous c-ares DNS resolver for Envoy upstream
   clusters instead of the blocking `getaddrinfo` resolver. With `getaddrinfo`, a
   slow or unanswered DNS lookup for an upstream that is not running (e.g. the
