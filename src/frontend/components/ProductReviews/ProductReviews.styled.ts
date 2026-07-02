@@ -11,17 +11,20 @@ export const ProductReviews = styled.section`
 `;
 
 export const TitleContainer = styled.div`
-  border-top: 1px dashed;
-  padding: 40px 0;
+  border-top: 1px solid ${({ theme }) => theme.colors.lightBorderGray};
+  padding: 32px 0;
   text-align: center;
   width: 100%;
 `;
 
 export const Title = styled.h3`
+  margin: 0;
   font-size: ${({ theme }) => theme.sizes.mLarge};
+  font-weight: ${({ theme }) => theme.fonts.bold};
+  letter-spacing: -0.02em;
 
   ${({ theme }) => theme.breakpoints.desktop} {
-    font-size: ${({ theme }) => theme.sizes.dLarge};
+    font-size: 28px;
   }
 `;
 

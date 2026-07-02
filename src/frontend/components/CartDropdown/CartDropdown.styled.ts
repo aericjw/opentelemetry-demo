@@ -12,31 +12,35 @@ export const CartDropdown = styled.div`
   width: 100%;
   height: 100%;
   max-height: 100%;
-  padding: 5px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 24px;
   background: ${({ theme }) => theme.colors.white};
   z-index: 1000;
-  border-radius: 5px;
-  box-shadow: 0 2px 2px 0 rgb(0 0 0 / 14%), 0 3px 1px -2px rgb(0 0 0 / 12%), 0 1px 5px 0 rgb(0 0 0 / 20%);
+  border-radius: 0;
+  box-shadow: 0 24px 48px -12px rgba(15, 23, 42, 0.25);
 
   ${({ theme }) => theme.breakpoints.desktop} {
     position: absolute;
     width: 400px;
-    top: 95px;
-    right: 17px;
+    top: 88px;
+    right: 24px;
     max-height: 600px;
+    border: 1px solid ${({ theme }) => theme.colors.lightBorderGray};
+    border-radius: 20px;
   }
 `;
 
 export const Title = styled.h5`
   margin: 0px;
   font-size: ${({ theme }) => theme.sizes.mxLarge};
+  font-weight: ${({ theme }) => theme.fonts.bold};
+  letter-spacing: -0.01em;
 
   ${({ theme }) => theme.breakpoints.desktop} {
-    font-size: ${({ theme }) => theme.sizes.dLarge};
+    font-size: 26px;
   }
 `;
 
@@ -51,16 +55,18 @@ export const Item = styled.div`
   display: grid;
   grid-template-columns: 29% 59%;
   gap: 2%;
-  padding: 25px 0;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.textLightGray};
+  padding: 20px 0;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.lightBorderGray};
 `;
 
 export const ItemImage = styled(Image).attrs({
   width: '80',
   height: '80',
 })`
-  border-radius: 5px;
+  border-radius: 12px;
   object-fit: contain;
+  background: #f6f7fb;
+  padding: 6px;
 `;
 
 export const ItemName = styled.p`

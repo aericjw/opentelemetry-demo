@@ -4,42 +4,60 @@
 import styled from 'styled-components';
 
 export const Input = styled.input`
-  width: -webkit-fill-available;
-  border: none;
-  padding: 16px;
+  width: 100%;
+  padding: 13px 16px;
   outline: none;
 
-  font-weight: ${({ theme }) => theme.fonts.regular};
-  font-size: ${({ theme }) => theme.sizes.dMedium};
+  font-weight: ${({ theme }) => theme.fonts.light};
+  font-size: 15px;
+  color: ${({ theme }) => theme.colors.textGray};
 
   border-radius: 10px;
-  background: #f9f9f9;
-  border: 1px solid #cacaca;
+  background: #fbfcfe;
+  border: 1px solid ${({ theme }) => theme.colors.borderGray};
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.otelBlue};
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+    background: ${({ theme }) => theme.colors.white};
+  }
 `;
 
 export const InputLabel = styled.p`
-  font-size: ${({ theme }) => theme.sizes.dMedium};
+  font-size: 13px;
   font-weight: ${({ theme }) => theme.fonts.semiBold};
+  letter-spacing: 0.01em;
+  color: #3b4358;
   margin: 0;
-  margin-bottom: 15px;
+  margin-bottom: 8px;
 `;
 
 export const Select = styled.select`
   width: 100%;
-  border: none;
+  padding: 13px 16px;
+  outline: none;
+  cursor: pointer;
 
-  padding: 16px;
-  font-weight: ${({ theme }) => theme.fonts.regular};
-  font-size: ${({ theme }) => theme.sizes.dMedium};
+  font-weight: ${({ theme }) => theme.fonts.light};
+  font-size: 15px;
+  color: ${({ theme }) => theme.colors.textGray};
 
   border-radius: 10px;
-  background: #f9f9f9;
-  border: 1px solid #cacaca;
+  background: #fbfcfe;
+  border: 1px solid ${({ theme }) => theme.colors.borderGray};
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.otelBlue};
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+    background: ${({ theme }) => theme.colors.white};
+  }
 `;
 
 export const InputRow = styled.div`
   position: relative;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 `;
 
 export const Arrow = styled.img.attrs({
@@ -47,8 +65,10 @@ export const Arrow = styled.img.attrs({
   alt: 'arrow',
 })`
   position: absolute;
-  right: 20px;
+  right: 18px;
   width: 10px;
   height: 5px;
-  top: 64px;
+  top: 50px;
+  pointer-events: none;
+  opacity: 0.6;
 `;

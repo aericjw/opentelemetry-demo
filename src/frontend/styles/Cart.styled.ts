@@ -5,10 +5,12 @@ import styled from 'styled-components';
 import Button from '../components/Button';
 
 export const Cart = styled.div`
-  margin: 24px;
+  margin: 24px 20px;
+  max-width: 1320px;
 
   ${({ theme }) => theme.breakpoints.desktop} {
-    margin: 100px;
+    margin: 56px auto;
+    padding: 0 40px;
   }
 `;
 
@@ -23,7 +25,7 @@ export const CarTitle = styled.h1`
 `;
 
 export const Header = styled.div`
-  margin-bottom: 50px;
+  margin-bottom: 32px;
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -40,6 +42,8 @@ export const Title = styled.h1`
   text-align: center;
   margin: 0;
   font-size: ${({ theme }) => theme.sizes.mLarge};
+  font-weight: ${({ theme }) => theme.fonts.bold};
+  letter-spacing: -0.02em;
 
   ${({ theme }) => theme.breakpoints.desktop} {
     font-size: ${({ theme }) => theme.sizes.dLarge};

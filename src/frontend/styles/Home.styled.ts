@@ -5,10 +5,12 @@ import styled from 'styled-components';
 
 export const Container = styled.div`
   width: 100%;
+  max-width: 1320px;
+  margin: 0 auto;
   padding: 0 20px;
 
   ${({ theme }) => theme.breakpoints.desktop} {
-    padding: 0 100px;
+    padding: 0 40px;
   }
 `;
 
@@ -20,25 +22,41 @@ export const Row = styled.div`
 
 export const Content = styled.div`
   width: 100%;
+  margin-top: 40px;
+
   ${({ theme }) => theme.breakpoints.desktop} {
-    margin-top: 100px;
+    margin-top: 72px;
   }
 `;
 
 export const HotProducts = styled.div`
-  margin-bottom: 20px;
+  margin-bottom: 48px;
 
   ${({ theme }) => theme.breakpoints.desktop} {
-    margin-bottom: 100px;
+    margin-bottom: 112px;
   }
 `;
 
 export const HotProductsTitle = styled.h1`
-  font-size: ${({ theme }) => theme.sizes.mLarge};
+  margin: 0 0 28px;
+  font-size: 24px;
   font-weight: ${({ theme }) => theme.fonts.bold};
+  letter-spacing: -0.02em;
+  color: ${({ theme }) => theme.colors.textGray};
+
+  &::after {
+    content: '';
+    display: block;
+    width: 56px;
+    height: 4px;
+    margin-top: 12px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #4f46e5, #f59e0b);
+  }
 
   ${({ theme }) => theme.breakpoints.desktop} {
-    font-size: ${({ theme }) => theme.sizes.dxLarge};
+    font-size: 34px;
+    margin-bottom: 40px;
   }
 `;
 
