@@ -1,9 +1,34 @@
 # Agent Service
 
 The Agent service provides an AI assistant for the OpenTelemetry Astronomy Shop
-  demo. It exposes a FastAPI HTTP endpoint that accepts user prompts, routes them
-  through a LangGraph ReAct agent, and uses either built-in shop tools or
-  MCP-provided tools to interact with the demo application.
+  demo. It exposes a FastAPI HTTP endpoint that accepts user prompts and runs
+  them through a multi-agent workflow: a routing supervisor classifies each
+  request, a specialist sub-agent (LangGraph ReAct agent with a scoped toolset)
+  handles it, and a grounding guardrail reviews the draft answer before it is
+  returned. Tools are either built-in shop tools or MCP-provided tools that
+  interact with the demo application.
+
+## Multi-Agent Workflow
+
+Each `POST /prompt` request flows through these steps, every one a separate
+LLM interaction that appears as its own span in the trace:
+
+1. `route_request` (task): the supervisor classifies the request as
+   `PRODUCT`, `ORDER`, or `GENERAL` and records `demo.agent.route`.
+2. One specialist agent runs a LangGraph ReAct loop with a scoped toolset:
+   - `product_specialist`: `list_products`, `get_product`,
+     `get_recommendations`, `get_ads`
+   - `order_concierge`: `add_to_cart`, `get_cart`, `empty_cart`, `checkout`,
+     `get_shipping_quote`, `get_supported_currencies`, `get_product`
+   - `shop_generalist`: all tools (also the fallback if routing fails)
+3. `guardrail_review` (task): a grounding reviewer checks the draft answer
+   against the shop reference data and records
+   `demo.agent.guardrail.verdict` (`pass`/`fail`).
+4. `revise_response` (task, only on `fail`): one self-correction pass
+   rewrites the draft using the reviewer critique.
+
+Failures in routing, review, or revision never fail the request: the workflow
+falls back to the generalist and/or the unrevised draft.
 
 ## Overview
 
@@ -212,6 +237,13 @@ The `fixtures/vcr_cassettes` directory is used when `USE_VCR=True`. Cassette
 
 This mode is useful for deterministic development and tests that should not
 call the live LLM API.
+
+Cassettes match on the normalized request body, which includes the system
+prompts and tool definitions. After changing prompts, tools, or the agent
+workflow, re-record the cassettes against a live LLM (run once with a real
+`API_KEY`; `record_mode` is `new_episodes`, so new interactions are appended
+automatically). The bundled cassettes predate the multi-agent workflow and
+only cover the previous single-agent prompts.
 
 ## File Layout
 

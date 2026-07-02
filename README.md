@@ -91,10 +91,15 @@ flagd UI at `http://localhost:8080/feature`):
 - The LLM-powered shopping agent (LangGraph + MCP + chatbot, see
   `compose.agent.yaml`) is instrumented with OpenLLMetry and emits
   `gen_ai.*` semantic-convention spans.
-- Every LLM call additionally records estimated spend and token consumption
-  (`demo.gen_ai.usage.cost`, `demo.gen_ai.usage.tokens`) split by model and
-  token type, using an adjustable per-model price table
-  (`src/agent/src/agents/llm.py`).
+- The agent uses a multi-step, multi-agent architecture that mirrors how
+  enterprise assistants are built: a routing supervisor classifies each
+  request, hands it to a specialist sub-agent with a scoped toolset (product
+  discovery specialist, order concierge, or generalist), and a grounding
+  guardrail reviews the draft answer for hallucinated products, prices, or
+  promotions, triggering one self-correction pass when it fails. A single
+  chat request therefore produces a realistic trace of chained LLM
+  interactions and tool calls, annotated with `demo.agent.route` and
+  `demo.agent.guardrail.verdict` attributes.
 
 ### Dynatrace
 
