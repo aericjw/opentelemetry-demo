@@ -23,6 +23,12 @@ the release.
 * [flagd] Add `postgresConnectionFailure`, `postgresSlowQueries`, and
   `postgresSchemaDrift` feature flags that inject genuine PostgreSQL failures
   into the product reviews service
+* [load-generator] Add `loadGeneratorSeasonality` feature flag driving a
+  periodic diurnal-style traffic wave for predictive AI demand-forecasting
+  scenarios
+* [product-reviews] Add `postgresConnectionLeak` feature flag that steadily
+  saturates Postgres `max_connections`, providing a forecastable
+  time-to-saturation trajectory that ends in genuine connection failures
 * [otel-collector] Add an opt-in Dynatrace export layer
   (`compose.dynatrace.yaml` + `otelcol-config-dynatrace.yml`) shipping
   traces, metrics (delta temporality), and logs via OTLP

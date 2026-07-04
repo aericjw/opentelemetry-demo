@@ -86,6 +86,41 @@ flagd UI at `http://localhost:8080/feature`):
   exist in a newer schema version, producing genuine undefined-column /
   undefined-table errors (simulates a migration that was never applied).
 
+### Predictive observability scenarios
+
+Predictive AI (e.g. Dynatrace Davis forecasting) needs trajectories - signals
+that trend toward a breach with enough lead time to act - and periodic demand
+curves it can learn. These flags and built-in behaviors provide both:
+
+- `loadGeneratorSeasonality` (flag) - drives the load generator along a
+  smooth diurnal-style traffic wave with a configurable cycle (30min to
+  24h; compressed cycles let a model learn the pattern in one demo
+  session). Request rates, resource usage, and business KPIs (orders,
+  revenue) all become forecastable curves, enabling demand-forecast
+  scenarios such as pre-warm scaling ahead of the predicted ramp, seasonal
+  SLO burn baselines, and consumption forecasting.
+- `postgresConnectionLeak` (flag) - the product reviews service abandons a
+  real database connection with the configured per-request probability. The
+  Postgres connection count (`postgresql.backends`) climbs steadily toward
+  the hard `max_connections` ceiling (100 by default), giving a clean
+  time-to-saturation forecast with actionable lead time; once the ceiling is
+  hit, genuine "too many clients" failures begin. Turning the flag off
+  releases the leaked connections, so the scenario resets without restarts.
+- `emailMemoryLeak` (existing flag) - the email service accumulates sent
+  messages in memory with a size multiplier, producing a steady memory-
+  growth trajectory toward its container limit at the pace of real order
+  traffic.
+- `kafkaQueueProblems` (existing flag) - the checkout floods the order
+  topic while the fraud-detection consumer sleeps per record, so consumer
+  lag grows roughly linearly for as long as the flag is enabled - a
+  projected-SLA-breach trajectory visible through the collector's
+  `kafkametrics` receiver.
+- Database storage growth (always on) - the accounting service inserts
+  every order into the `astronomy_db` Postgres database, so database size
+  grows monotonically with traffic (and seasonally with
+  `loadGeneratorSeasonality`), feeding classic storage-exhaustion
+  forecasts via the collector's `postgresql` receiver.
+
 ### AI observability
 
 - The LLM-powered shopping agent (LangGraph + MCP + chatbot, see
