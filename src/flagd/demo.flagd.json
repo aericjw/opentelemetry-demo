@@ -201,6 +201,29 @@
         "off": false
       },
       "defaultVariant": "off"
+    },
+    "loadGeneratorSeasonality": {
+      "description": "Drives load generator traffic along a periodic diurnal-style wave with the given cycle length in minutes, producing forecastable demand curves for predictive AI scenarios (pre-warm scaling, seasonal SLO/consumption baselines)",
+      "state": "ENABLED",
+      "variants": {
+        "24h": 1440,
+        "8h": 480,
+        "2h": 120,
+        "30min": 30,
+        "off": 0
+      },
+      "defaultVariant": "off"
+    },
+    "postgresConnectionLeak": {
+      "description": "Product reviews service leaks (opens and never closes) a database connection with probability n per request, steadily saturating Postgres max_connections; the climbing connection count is a forecastable trajectory that ends in genuine too-many-clients failures",
+      "state": "ENABLED",
+      "variants": {
+        "fast": 0.2,
+        "medium": 0.05,
+        "slow": 0.01,
+        "off": 0
+      },
+      "defaultVariant": "off"
     }
   }
 }

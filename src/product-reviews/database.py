@@ -39,6 +39,39 @@ def _flag_bool(flag_name):
     except Exception:
         return False
 
+# Connections deliberately opened and abandoned by the postgresConnectionLeak
+# flag. Postgres caps concurrent connections at max_connections (100 by
+# default), so the climbing postgresql.backends metric has a hard ceiling and
+# a predictable time to saturation - a forecastable trajectory for predictive
+# AI - followed by genuine "too many clients" connection failures.
+_LEAKED_CONNECTIONS_CAP = 300
+_leaked_connections = []
+
+def _apply_connection_leak():
+    """Honor the postgresConnectionLeak flag: with the configured per-request
+    probability, open a real database connection and never close it. Turning
+    the flag off releases all leaked connections so the scenario resets
+    without a restart."""
+    leak_probability = _flag_number("postgresConnectionLeak")
+    if leak_probability <= 0:
+        if _leaked_connections:
+            logger.info(f"postgresConnectionLeak flag disabled: releasing {len(_leaked_connections)} leaked connections")
+            while _leaked_connections:
+                try:
+                    _leaked_connections.pop().close()
+                except Exception:
+                    pass
+        return
+    if len(_leaked_connections) >= _LEAKED_CONNECTIONS_CAP:
+        return
+    if random.random() < leak_probability:
+        try:
+            connection = psycopg2.connect(db_connection_str, connect_timeout=5)
+            _leaked_connections.append(connection)
+            logger.warning(f"postgresConnectionLeak flag is enabled: abandoned connection #{len(_leaked_connections)}")
+        except Exception as e:
+            logger.error(f"postgresConnectionLeak: could not open connection to leak: {e}")
+
 def get_connection():
     """Open a database connection, honoring the postgresConnectionFailure flag.
 
@@ -73,6 +106,7 @@ def fetch_product_reviews(product_id):
 def fetch_product_reviews_from_db(request_product_id):
 
     connection = None
+    _apply_connection_leak()
 
     try:
         with get_connection() as connection:
@@ -107,6 +141,7 @@ def fetch_product_reviews_from_db(request_product_id):
 def fetch_avg_product_review_score_from_db(request_product_id):
 
     connection = None
+    _apply_connection_leak()
 
     try:
         with get_connection() as connection:

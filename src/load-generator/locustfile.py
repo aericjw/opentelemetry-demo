@@ -4,12 +4,14 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
+import math
 import os
 import random
+import time
 import uuid
 import logging
 
-from locust import HttpUser, task, between
+from locust import HttpUser, LoadTestShape, task, between
 from locust_plugins.users.playwright import PlaywrightUser, pw, PageWithRetry, event
 
 from opentelemetry import context, baggage, trace
@@ -333,11 +335,12 @@ class WebsiteUser(HttpUser):
             ctx = baggage.set_baggage(key, value, context=ctx)
         self.session_ctx = ctx
         context.attach(ctx)
-        with self.tracer.start_as_current_span("user_session_start", context=self.session_context(),
-                                               attributes=self.customer_attributes()):
-            logging.info(f"Starting user session: {session_id} for customer {self.customer['customer.id']} "
-                         f"({self.customer['customer.loyalty_level']} {self.customer['customer.type']}, "
-                         f"campaign={self.customer['customer.acquisition_campaign']}, channel={self.customer['customer.channel']})")
+        with self.tracer.start_as_current_span(
+                "user_session_start", context=self.session_context(), attributes=self.customer_attributes()):
+            logging.info(
+                f"Starting user session: {session_id} for customer {self.customer['customer.id']} "
+                f"({self.customer['customer.loyalty_level']} {self.customer['customer.type']}, "
+                f"campaign={self.customer['customer.acquisition_campaign']}, channel={self.customer['customer.channel']})")
             self.index()
 
 
@@ -393,3 +396,54 @@ async def add_baggage_header(route: Route, request: Request):
         'baggage': ', '.join(filter(None, (existing_baggage, 'synthetic_request=true')))
     }
     await route.continue_(headers=headers)
+
+
+# Baseline and peak user counts for the seasonal load shape. The baseline
+# matches LOCUST_USERS, so behavior is unchanged while the
+# loadGeneratorSeasonality flag is off.
+seasonal_base_users = int(os.environ.get("LOCUST_USERS", 5))
+seasonal_peak_users = int(os.environ.get("LOCUST_SEASONALITY_PEAK_USERS", 25))
+
+
+class SeasonalLoadShape(LoadTestShape):
+    """Drive the simulated user count along a smooth diurnal-style wave so
+    request rates, resource usage, and business KPIs follow a periodic,
+    forecastable curve instead of a flat line.
+
+    The loadGeneratorSeasonality feature flag selects the cycle length in
+    minutes (0 = flat baseline load, identical to the default behavior).
+    Compressed cycles (30min, 2h) let predictive AI learn the pattern
+    quickly during demos; 24h models a real business day. This enables
+    demand-forecasting scenarios such as pre-warm scaling ahead of the
+    predicted ramp and seasonal baselines for SLO burn and consumption.
+    """
+
+    _FLAG_CACHE_SECONDS = 30
+
+    def __init__(self):
+        super().__init__()
+        self._cycle_minutes = 0
+        self._next_flag_check = 0.0
+
+    def _get_cycle_minutes(self):
+        now = time.monotonic()
+        if now >= self._next_flag_check:
+            self._next_flag_check = now + self._FLAG_CACHE_SECONDS
+            try:
+                self._cycle_minutes = get_flagd_value("loadGeneratorSeasonality")
+            except Exception:
+                self._cycle_minutes = 0
+        return self._cycle_minutes
+
+    def tick(self):
+        cycle_minutes = self._get_cycle_minutes()
+        if cycle_minutes <= 0:
+            return (seasonal_base_users, max(1, seasonal_base_users))
+        period_seconds = cycle_minutes * 60
+        phase = (self.get_run_time() % period_seconds) / period_seconds
+        # Smooth wave from 0 (trough) to 1 (peak mid-cycle), with a little
+        # noise so the curve looks like real traffic rather than a pure sine.
+        wave = 0.5 * (1 - math.cos(2 * math.pi * phase))
+        level = min(1.0, max(0.0, wave + random.uniform(-0.05, 0.05)))
+        users = round(seasonal_base_users + (seasonal_peak_users - seasonal_base_users) * level)
+        return (max(1, users), max(1, seasonal_peak_users // 10))
