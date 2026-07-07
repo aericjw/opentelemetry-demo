@@ -273,6 +273,9 @@ services:
       - OTEL_COLLECTOR_HOST
       - FLAGD_HOST
       - FLAGD_PORT
+      - DYNATRACE_RUM_TAG_PROD
+      - DYNATRACE_RUM_TAG_STAGING
+      - DYNATRACE_RUM_TAG_DEV
     healthcheck:
       test: ["CMD", "/nodejs/bin/node", "-e", "require('net').connect(${FRONTEND_PORT},require('os').hostname(),function(){process.exit(0)}).on('error',function(){process.exit(1)})"]
       start_period: 60s

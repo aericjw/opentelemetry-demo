@@ -224,6 +224,23 @@
         "off": 0
       },
       "defaultVariant": "off"
+    },
+    "rumEnvironment": {
+      "description": "Selects which Dynatrace environment's RUM JavaScript tag the frontend loads for a session (prod/staging/dev). Sessions are split across all three so every environment receives live browser traffic; set a single variant as defaultVariant with no targeting to send all sessions to one environment.",
+      "state": "ENABLED",
+      "variants": {
+        "prod": "prod",
+        "staging": "staging",
+        "dev": "dev"
+      },
+      "defaultVariant": "prod",
+      "targeting": {
+        "fractional": [
+          ["prod", 34],
+          ["staging", 33],
+          ["dev", 33]
+        ]
+      }
     }
   }
 }

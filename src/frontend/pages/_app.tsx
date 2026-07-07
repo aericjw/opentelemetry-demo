@@ -20,6 +20,7 @@ declare global {
       NEXT_PUBLIC_PLATFORM?: string;
       NEXT_PUBLIC_OTEL_SERVICE_NAME?: string;
       NEXT_PUBLIC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT?: string;
+      NEXT_PUBLIC_RUM_ENVIRONMENT?: string;
       IS_SYNTHETIC_REQUEST?: string;
     };
   }
@@ -39,6 +40,7 @@ if (typeof window !== 'undefined') {
       currency_code: session.currencyCode,
       platform: window.ENV?.NEXT_PUBLIC_PLATFORM,
       service_name: window.ENV?.NEXT_PUBLIC_OTEL_SERVICE_NAME,
+      rum_environment: window.ENV?.NEXT_PUBLIC_RUM_ENVIRONMENT,
       synthetic_request: window.ENV?.IS_SYNTHETIC_REQUEST === 'true',
     });
 

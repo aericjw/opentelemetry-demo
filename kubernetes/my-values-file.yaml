@@ -118,6 +118,8 @@ components:
       oneagent.dynatrace.com/inject: "false"
     service:
       type: LoadBalancer
+      annotations:
+        service.beta.kubernetes.io/azure-dns-label-name: astroshop-postgres
   product-catalog:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
@@ -228,7 +230,7 @@ components:
       - name: MCP_PORT
         value: "8011"
       - name: MCP_ENABLED
-        value: "False"
+        value: "True"
       - name: GRAPH_RECURSION_LIMIT
         value: "25"
       - name: APPLICATION_ENDPOINT
@@ -239,20 +241,20 @@ components:
         value: "False"
       - name: LLM_TLS_VERIFY
         value: "False"
-      # - name: LLM_BASE_URL
-      #   value: "https://api.anthropic.com/v1/"
-      # - name: LLM_MODEL
-      #   value: claude-haiku-4-5
-      # - name: API_KEY
-      #   valueFrom:
-      #     secretKeyRef:
-      #       name: anthropic-api-key
-      #       key: ANTHROPIC_API_KEY
-      # - name: OPENAI_API_KEY
-      #   valueFrom:
-      #     secretKeyRef:
-      #       name: anthropic-api-key
-      #       key: ANTHROPIC_API_KEY
+      - name: LLM_BASE_URL
+        value: "https://api.anthropic.com/v1/"
+      - name: LLM_MODEL
+        value: claude-haiku-4-5
+      - name: API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: anthropic-api-key
+            key: ANTHROPIC_API_KEY
+      - name: OPENAI_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: anthropic-api-key
+            key: ANTHROPIC_API_KEY
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: $(OTEL_COLLECTOR_NAME):4317
       - name: OTEL_EXPORTER_OTLP_INSECURE
