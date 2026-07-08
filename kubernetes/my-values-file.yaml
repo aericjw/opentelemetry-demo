@@ -393,7 +393,7 @@ opentelemetry-collector:
         limit_percentage: 75
         spike_limit_percentage: 15
       resourcedetection:
-        detectors: [env, system, aks]
+        detectors: [env, system, aks, azure]
       k8sattributes:
         extract:
           metadata:
@@ -511,3 +511,5 @@ opentelemetry-collector:
           receivers: [otlp]
           processors: [memory_limiter, resourcedetection, k8sattributes, resource, filter/profiles]
           exporters: [otlp_grpc/firepit, debug]
+
+# helm upgrade astroshop kubernetes/_chart-cache/opentelemetry-demo -f kubernetes/my-values-file.yaml -n astroshop
