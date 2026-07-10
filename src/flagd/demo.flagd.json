@@ -1,24 +1,6 @@
 {
   "$schema": "https://flagd.dev/schema/v0/flags.json",
   "flags": {
-    "llmInaccurateResponse": {
-      "defaultVariant": "off",
-      "description": "LLM returns an inaccurate product summary for product ID L9ECAV7KIM",
-      "state": "ENABLED",
-      "variants": {
-        "off": false,
-        "on": true
-      }
-    },
-    "llmRateLimitError": {
-      "defaultVariant": "off",
-      "description": "LLM intermittently returns a rate limit error",
-      "state": "ENABLED",
-      "variants": {
-        "off": false,
-        "on": true
-      }
-    },
     "productCatalogFailure": {
       "description": "Fail product catalog service on a specific product",
       "state": "ENABLED",
@@ -88,11 +70,16 @@
       "defaultVariant": "off"
     },
     "cartFailure": {
-      "description": "Fail cart service",
+      "description": "Fail cart service n% of the time",
       "state": "ENABLED",
       "variants": {
-        "on": true,
-        "off": false
+        "100%": 1,
+        "90%": 0.9,
+        "75%": 0.75,
+        "50%": 0.5,
+        "25%": 0.25,
+        "10%": 0.1,
+        "off": 0
       },
       "defaultVariant": "off"
     },

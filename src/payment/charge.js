@@ -80,6 +80,13 @@ module.exports.charge = async request => {
   };
 
   try {
+    const baggage = propagation.getBaggage(context.active());
+    const syntheticRequest = baggage?.getEntry('synthetic_request')?.value === 'true';
+
+    if (syntheticRequest) {
+      span.setAttribute('user_agent.synthetic.type', 'test');
+    }
+
     await OpenFeature.setProviderAndWait(flagProvider);
 
     const numberVariant = await OpenFeature.getClient().getNumberValue("paymentFailure", 0);
@@ -125,8 +132,8 @@ module.exports.charge = async request => {
       throw new PaymentDeclinedError(`The credit card (ending ${lastFourDigits}) expired on ${month}/${year}.`, 'card_expired');
     }
 
-    // Check baggage for synthetic_request=true, and add charged attribute accordingly
-    if (baggage && baggage.getEntry('synthetic_request') && baggage.getEntry('synthetic_request').value === 'true') {
+    // Do not charge synthetic requests.
+    if (syntheticRequest) {
       span.setAttribute('demo.payment.charged', false);
     } else {
       span.setAttribute('demo.payment.charged', true);

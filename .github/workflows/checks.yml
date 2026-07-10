@@ -41,9 +41,12 @@ jobs:
   yamllint:
     runs-on: ubuntu-latest
     steps:
-      - name: check out code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
         with:
           python-version: '3.x'
       - name: install yamllint
@@ -65,7 +68,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - name: Restore lychee cache
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         id: cache-restore
         with:
           path: .lycheecache
@@ -79,7 +82,7 @@ jobs:
           fail: true
       - name: Save lychee cache
         if: always()
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: .lycheecache
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
@@ -115,19 +118,41 @@ jobs:
     outputs:
       should_build: ${{ steps.filter.outputs.react_native }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
-      - uses: dorny/paths-filter@v4
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Check React Native paths
+        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706  # v4.0.2
         id: filter
         with:
           filters: |
             react_native:
               - 'src/react-native-app/**'
-              - '.github/workflows/**'
+              - 'Makefile'
+              - '.github/workflows/checks.yml'
+              - '.github/workflows/react-native-build.yml'
 
-  react-native-android:
+  react-native-build:
     needs: check-react-native-changes
     if: needs.check-react-native-changes.outputs.should_build == 'true'
     uses: ./.github/workflows/react-native-build.yml
+
+  zizmor:
+    name: zizmor scan
+    permissions:
+      actions: read  # required to scan GitHub Actions workflows
+      contents: read  # required to checkout the repository
+      security-events: write  # required to upload zizmor SARIF to code scanning
+    uses: ./.github/workflows/zizmor.yml
+
+  codeql-analysis:
+    name: CodeQL analysis
+    permissions:
+      actions: read  # required to scan GitHub Actions workflows
+      contents: read  # required to checkout the repository
+      security-events: write  # required to upload CodeQL SARIF to code scanning
+    uses: ./.github/workflows/codeql-analysis.yml
 
   build-test:
     needs: [
@@ -139,7 +164,9 @@ jobs:
       sanity,
       checklicense,
       weaver-check,
-      react-native-android
+      react-native-build,
+      codeql-analysis,
+      zizmor
     ]
     if: always() && !cancelled()
     runs-on: ubuntu-latest

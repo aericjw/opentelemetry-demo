@@ -32,7 +32,7 @@ falls back to the generalist and/or the unrevised draft.
 
 ## Overview
 
-- Runtime: Python 3.11
+- Runtime: Python 3.14
 - Web framework: FastAPI served by Uvicorn
 - Agent framework: LangChain and LangGraph prebuilt components
 - LLM client: `langchain_openai.ChatOpenAI` and support non OpenAI models via
@@ -135,7 +135,7 @@ MCP_PORT=8011
 
 ## Built-in Tools
 
-When `MCP_ENABLED` is `False`, the agent uses built-in tools from `src/agents/tools.py`:
+When `MCP_ENABLED` is `False`, the agent uses built-in tools from `src/shared/tools.py`:
 
 - `get_ads(category)` - fetches promotional ads.
 - `list_products()` - lists available products.
@@ -165,7 +165,7 @@ Tools are loaded dynamically using `langchain_mcp_adapters.tools.load_mcp_tools`
 
 `run.py` initializes Traceloop with:
 
-- Application name: `AstronomyShopAgent`
+- Application name: `agent`
 - API endpoint: `OTEL_EXPORTER_OTLP_ENDPOINT`, defaulting to `localhost:4317`
 
 The `run_agent` method is decorated as a Traceloop workflow named:
@@ -252,6 +252,7 @@ src/agent/
 |-- Dockerfile
 |-- README.md
 |-- requirements.txt
+|-- requirements.in
 |-- run.py
 |-- fixtures/
 |   `-- vcr_cassettes/*_cassette.yaml
@@ -260,8 +261,7 @@ src/agent/
         |-- agents.py       # FastAPI app and LangChain agent orchestration
         |-- llm.py          # OpenAI-compatible LLM wrapper and VCR integration
         |-- mcp_client.py   # MCP streamable HTTP client
-        |-- patch_vcr.py    # VCR helper integration
-        `-- tools.py        # Built-in Astronomy Shop tools
+        `--patch_vcr.py    # VCR helper integration
 ```
 
 ## Troubleshooting

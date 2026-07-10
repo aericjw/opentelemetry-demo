@@ -94,9 +94,6 @@ components:
       limits:
         cpu: 1000m
         memory: 1Gi
-  llm:
-    podAnnotations:
-      oneagent.dynatrace.com/inject: "false"
   load-generator:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
@@ -155,24 +152,6 @@ components:
   product-catalog:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
-  product-reviews:
-    podAnnotations:
-      oneagent.dynatrace.com/inject: "false"
-    resources:
-      requests:
-        memory: 200Mi
-      limits:
-        memory: 200Mi
-    # envOverrides:
-    # - name: LLM_MODEL
-    #   value: claude-haiku-4-5
-    # - name: LLM_BASE_URL
-    #   value: "https://api.anthropic.com/v1/"
-    # - name: OPENAI_API_KEY
-    #   valueFrom:
-    #     secretKeyRef:
-    #       name: anthropic-api-key
-    #       key: ANTHROPIC_API_KEY
   quote:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
@@ -268,7 +247,7 @@ components:
       - name: APPLICATION_ENDPOINT
         value: frontend:8080
       # VCR cassettes are a Compose volume (not baked into the image), so use a
-      # real LLM on AKS. Reuses the same secret as product-reviews.
+      # real LLM on AKS via the anthropic-api-key secret.
       - name: USE_VCR
         value: "False"
       - name: LLM_TLS_VERIFY
