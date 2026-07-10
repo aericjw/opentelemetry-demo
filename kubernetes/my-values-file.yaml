@@ -114,6 +114,38 @@ components:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
   postgresql:
+    command:
+      - "docker-entrypoint.sh"
+      - "postgres"
+      - "-c"
+      - "shared_preload_libraries=pg_stat_statements"
+      - "-c"
+      - "track_activity_query_size=4096"
+      - "-c"
+      - "pg_stat_statements.max=10000"
+      - "-c"
+      - "pg_stat_statements.track_utility=off"
+      - "-c"
+      - "track_io_timing=on"
+      - "-c"
+      - "plan_cache_mode=force_generic_plan"
+    # The three POSTGRES_* vars mirror the chart defaults and MUST be repeated:
+    # Helm replaces (does not merge) list-valued keys, so declaring `env` here
+    # overrides the chart's list entirely. DYNATRACE_PASSWORD is injected from a
+    # Secret and consumed by src/postgresql/zz-dynatrace.sql to create the
+    # 'dynatrace' monitoring user without exposing the password in the ConfigMap.
+    env:
+      - name: POSTGRES_USER
+        value: root
+      - name: POSTGRES_PASSWORD
+        value: otel
+      - name: POSTGRES_DB
+        value: otel
+      - name: DYNATRACE_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: dynatrace-db-password
+            key: password
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
     service:
