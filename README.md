@@ -70,22 +70,6 @@ OpenTelemetry ingest into Dynatrace.
   token errors) plus a `demo.payment.transaction.amount` histogram, all
   segmented by the same customer context.
 
-### Database failure scenarios
-
-Three additional [feature flags](src/flagd/demo.flagd.json) inject genuine
-PostgreSQL problems into the product reviews service (toggle them in the
-flagd UI at `http://localhost:8080/feature`):
-
-- `postgresConnectionFailure` - a configurable fraction of database
-  connections is attempted with stale credentials, producing real Postgres
-  authentication errors (simulates a credential rotation gone wrong).
-- `postgresSlowQueries` - adds real database-side latency (`pg_sleep`) to
-  review queries, visible to database monitoring via `pg_stat_statements`,
-  not just as slow client spans.
-- `postgresSchemaDrift` - the service queries a column and table that only
-  exist in a newer schema version, producing genuine undefined-column /
-  undefined-table errors (simulates a migration that was never applied).
-
 ### Predictive observability scenarios
 
 Predictive AI (e.g. Dynatrace Davis forecasting) needs trajectories - signals
@@ -99,13 +83,6 @@ curves it can learn. These flags and built-in behaviors provide both:
   revenue) all become forecastable curves, enabling demand-forecast
   scenarios such as pre-warm scaling ahead of the predicted ramp, seasonal
   SLO burn baselines, and consumption forecasting.
-- `postgresConnectionLeak` (flag) - the product reviews service abandons a
-  real database connection with the configured per-request probability. The
-  Postgres connection count (`postgresql.backends`) climbs steadily toward
-  the hard `max_connections` ceiling (100 by default), giving a clean
-  time-to-saturation forecast with actionable lead time; once the ceiling is
-  hit, genuine "too many clients" failures begin. Turning the flag off
-  releases the leaked connections, so the scenario resets without restarts.
 - `emailMemoryLeak` (existing flag) - the email service accumulates sent
   messages in memory with a size multiplier, producing a steady memory-
   growth trajectory toward its container limit at the pace of real order

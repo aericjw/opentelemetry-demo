@@ -157,38 +157,6 @@
       },
       "defaultVariant": "off"
     },
-    "postgresConnectionFailure": {
-      "description": "Fail product reviews database connections n% of the time with authentication errors, simulating a credential rotation gone wrong",
-      "state": "ENABLED",
-      "variants": {
-        "100%": 1,
-        "50%": 0.5,
-        "25%": 0.25,
-        "10%": 0.1,
-        "off": 0
-      },
-      "defaultVariant": "off"
-    },
-    "postgresSlowQueries": {
-      "description": "Slows down product reviews database queries by the given number of seconds of real database-side latency (pg_sleep)",
-      "state": "ENABLED",
-      "variants": {
-        "10sec": 10,
-        "3sec": 3,
-        "1sec": 1,
-        "off": 0
-      },
-      "defaultVariant": "off"
-    },
-    "postgresSchemaDrift": {
-      "description": "Product reviews queries expect a newer database schema (missing column/table), simulating a migration that was never applied",
-      "state": "ENABLED",
-      "variants": {
-        "on": true,
-        "off": false
-      },
-      "defaultVariant": "off"
-    },
     "loadGeneratorSeasonality": {
       "description": "Drives load generator traffic along a periodic diurnal-style wave with the given cycle length in minutes, producing forecastable demand curves for predictive AI scenarios (pre-warm scaling, seasonal SLO/consumption baselines)",
       "state": "ENABLED",
@@ -200,34 +168,6 @@
         "off": 0
       },
       "defaultVariant": "off"
-    },
-    "postgresConnectionLeak": {
-      "description": "Product reviews service leaks (opens and never closes) a database connection with probability n per request, steadily saturating Postgres max_connections; the climbing connection count is a forecastable trajectory that ends in genuine too-many-clients failures",
-      "state": "ENABLED",
-      "variants": {
-        "fast": 0.2,
-        "medium": 0.05,
-        "slow": 0.01,
-        "off": 0
-      },
-      "defaultVariant": "off"
-    },
-    "rumEnvironment": {
-      "description": "Selects which Dynatrace environment's RUM JavaScript tag the frontend loads for a session (prod/staging/dev). Sessions are split across all three so every environment receives live browser traffic; set a single variant as defaultVariant with no targeting to send all sessions to one environment.",
-      "state": "ENABLED",
-      "variants": {
-        "prod": "prod",
-        "staging": "staging",
-        "dev": "dev"
-      },
-      "defaultVariant": "prod",
-      "targeting": {
-        "fractional": [
-          ["prod", 34],
-          ["staging", 33],
-          ["dev", 33]
-        ]
-      }
     }
   }
 }
