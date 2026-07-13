@@ -27,4 +27,4 @@ COPY ./src/payment/logger.js logger.js
 
 EXPOSE ${PAYMENT_PORT}
 
-CMD ["index.js"]
+CMD ["--require", "@opentelemetry/auto-instrumentations-node/register", "index.js"]
