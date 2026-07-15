@@ -5,6 +5,7 @@ package kafka
 import (
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/IBM/sarama"
 )
@@ -35,6 +36,14 @@ func CreateKafkaProducer(brokers []string, logger *slog.Logger) (sarama.AsyncPro
 	saramaConfig := sarama.NewConfig()
 	saramaConfig.Producer.Return.Successes = true
 	saramaConfig.Producer.Return.Errors = true
+
+	// Bound the network round-trips and retries for a single publish so a slow
+	// or unavailable broker cannot make a produce attempt hang indefinitely.
+	saramaConfig.Net.DialTimeout = 2 * time.Second
+	saramaConfig.Net.ReadTimeout = 2 * time.Second
+	saramaConfig.Net.WriteTimeout = 2 * time.Second
+	saramaConfig.Producer.Retry.Max = 3
+	saramaConfig.Producer.Retry.Backoff = 250 * time.Millisecond
 
 	// Sarama has an issue in a single broker kafka if the kafka broker is restarted.
 	// This setting is to prevent that issue from manifesting itself, but may swallow failed messages.

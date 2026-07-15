@@ -79,6 +79,11 @@ var (
 	initResourcesOnce   sync.Once
 )
 
+// kafkaProducerTimeout bounds the asynchronous order-event publish so a slow or
+// unavailable Kafka broker cannot leak goroutines. The publish is best-effort
+// and runs off the request path, so this only caps its lifetime.
+const kafkaProducerTimeout = 5 * time.Second
+
 // Baggage entries set by upstream callers (frontend, load generator) that
 // carry business context, mapped to the span/log attribute names used across
 // the demo. Enriching backend telemetry with this context is what enables
@@ -460,7 +465,15 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 	// send to kafka only if kafka broker address is set
 	if cs.kafkaBrokerSvcAddr != "" {
 		logger.Info("sending to postProcessor")
-		cs.sendToPostProcessor(ctx, orderResult)
+		// Publishing the order event is best-effort and must not add Kafka
+		// latency to the customer-facing response. Detach it from the request
+		// lifecycle (WithoutCancel keeps the trace context for the producer
+		// span) and bound it with its own deadline.
+		publishCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), kafkaProducerTimeout)
+		go func() {
+			defer cancel()
+			cs.sendToPostProcessor(publishCtx, orderResult)
+		}()
 	}
 
 	resp := &pb.PlaceOrderResponse{Order: orderResult}
