@@ -25,7 +25,7 @@ export default function Settings() {
 
   return (
     <ThemedView style={styles.container}>
-      <Setting name="Frontend Proxy URL" get={getFrontendProxyURL} set={onSetFrontendProxyURL} />
+      <Setting testID="settings-frontend-url" name="Frontend Proxy URL" get={getFrontendProxyURL} set={onSetFrontendProxyURL} />
     </ThemedView>
   );
 }

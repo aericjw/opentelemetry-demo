@@ -1,0 +1,24 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# Points the app at the publicly hosted demo backend via the Settings tab.
+# The value is persisted in AsyncStorage, so this only needs to run once after a
+# fresh install (or whenever you want to change the target environment).
+appId: io.opentelemetry.reactnativeapp
+env:
+  ENDPOINT: ${MAESTRO_ENDPOINT:-http://astroshop.westus2.cloudapp.azure.com:8080}
+---
+- launchApp
+- tapOn:
+    id: "tab-settings"
+- assertVisible: "Frontend Proxy URL:"
+- tapOn:
+    id: "settings-frontend-url"
+- eraseText
+- inputText: ${ENDPOINT}
+- hideKeyboard
+- tapOn:
+    id: "setting-apply"
+- assertVisible: "Frontend Proxy URL applied"
+- tapOn:
+    id: "tab-products"

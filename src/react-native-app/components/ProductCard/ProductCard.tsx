@@ -56,7 +56,7 @@ const ProductCard = ({
       <ThemedView style={styles.productInfo}>
         <ThemedText style={styles.name}>{name}</ThemedText>
         <ThemedText style={styles.price}>$ {price}</ThemedText>
-        <Pressable style={styles.add} onPress={onClickAdd}>
+        <Pressable testID="product-add-to-cart" style={styles.add} onPress={onClickAdd}>
           <ThemedText style={styles.addText}>Add to Cart</ThemedText>
         </Pressable>
       </ThemedView>

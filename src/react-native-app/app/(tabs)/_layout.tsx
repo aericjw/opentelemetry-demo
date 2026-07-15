@@ -22,6 +22,7 @@ export default function TabLayout() {
         options={{
           title: "Products",
           tabBarShowLabel: false,
+          tabBarButtonTestID: "tab-products",
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon
               name={focused ? "list" : "list-outline"}
@@ -35,6 +36,7 @@ export default function TabLayout() {
         options={{
           title: "Cart",
           tabBarShowLabel: false,
+          tabBarButtonTestID: "tab-cart",
           tabBarBadge: itemsInCart || undefined,
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon
@@ -49,6 +51,7 @@ export default function TabLayout() {
         options={{
           title: "Settings",
           tabBarShowLabel: false,
+          tabBarButtonTestID: "tab-settings",
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon
               name={focused ? "settings" : "settings-outline"}

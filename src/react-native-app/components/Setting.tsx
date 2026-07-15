@@ -48,7 +48,7 @@ export function Setting({ name, get, set, ...otherProps }: SettingProps) {
             value={text}
              {...otherProps}
           />
-          <Pressable style={styles.apply} onPress={onApply}>
+          <Pressable testID="setting-apply" style={styles.apply} onPress={onApply}>
             <ThemedText style={styles.applyText}>Apply</ThemedText>
           </Pressable>
         </>

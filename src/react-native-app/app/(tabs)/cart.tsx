@@ -98,7 +98,7 @@ export default function Cart() {
         </ThemedScrollView>
       </ThemedView>
       <ThemedView style={styles.emptyCartContainer}>
-        <Pressable style={styles.emptyCart} onPress={onEmptyCart}>
+        <Pressable testID="cart-empty" style={styles.emptyCart} onPress={onEmptyCart}>
           <ThemedText style={styles.emptyCartText}>Empty Cart</ThemedText>
         </Pressable>
       </ThemedView>

@@ -1,0 +1,41 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# Full purchase journey: browse products, add a couple to the cart, then check
+# out with the pre-filled order form. Each run is a fresh cold start, so it
+# produces one complete Dynatrace RUM session covering the happy path.
+appId: io.opentelemetry.reactnativeapp
+---
+- launchApp
+- tapOn:
+    id: "tab-products"
+- assertVisible:
+    id: "product-add-to-cart"
+
+# Add the first visible product to the cart.
+- tapOn:
+    id: "product-add-to-cart"
+    index: 0
+- assertVisible: "This item has been added to your cart"
+
+# Scroll and add a second product for a multi-item basket.
+- scroll
+- tapOn:
+    id: "product-add-to-cart"
+    index: 1
+    optional: true
+
+# Review the cart and place the order (checkout form ships pre-filled).
+- tapOn:
+    id: "tab-cart"
+- scrollUntilVisible:
+    element:
+      id: "checkout-place-order"
+    direction: DOWN
+- tapOn:
+    id: "checkout-place-order"
+- assertVisible: "Your order is Complete!"
+
+# Return to the product list to leave the app in a clean state.
+- tapOn:
+    id: "tab-products"

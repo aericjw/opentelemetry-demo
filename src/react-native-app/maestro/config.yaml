@@ -1,0 +1,16 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# Maestro workspace configuration. Applies to every flow in this directory.
+# https://docs.maestro.dev/advanced/configuring-maestro-cli
+flows:
+  - "flows/*.yaml"
+
+# configure-endpoint points the app at the demo backend and must run before the
+# shopping journeys. The remaining journeys can run in any order.
+executionOrder:
+  continueOnFailure: true
+  flowsOrder:
+    - configure-endpoint
+    - shop-journey
+    - browse-and-abandon

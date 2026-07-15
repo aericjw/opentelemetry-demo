@@ -1,0 +1,30 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+# Browsing session that fills a cart and then abandons it without checking out.
+# Mirrors the cart-abandonment funnel produced by the backend load generator and
+# adds variety so the RUM data isn't a single repeated journey.
+appId: io.opentelemetry.reactnativeapp
+---
+- launchApp
+- tapOn:
+    id: "tab-products"
+- assertVisible:
+    id: "product-add-to-cart"
+
+# Browse: scroll through the catalog.
+- scroll
+- scroll
+
+# Add an item, look at the cart, then empty it and walk away.
+- tapOn:
+    id: "product-add-to-cart"
+    index: 0
+- assertVisible: "This item has been added to your cart"
+- tapOn:
+    id: "tab-cart"
+- tapOn:
+    id: "cart-empty"
+- assertVisible: "Your shopping cart is empty!"
+- tapOn:
+    id: "tab-products"
