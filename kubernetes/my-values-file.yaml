@@ -35,6 +35,10 @@ components:
   checkout:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
+    envOverrides:
+      # Go otlp*http exporters need the collector's HTTP port, not gRPC 4317.
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4318
   currency:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
@@ -94,10 +98,10 @@ components:
     resources:
       requests:
         cpu: 1000m
-        memory: 1Gi
+        memory: 2Gi
       limits:
         cpu: 1000m
-        memory: 1Gi
+        memory: 2Gi
   load-generator:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
@@ -117,22 +121,13 @@ components:
     envOverrides:
       - name: OTEL_EXPORTER_OTLP_PROTOCOL
         value: grpc
-  shipping:
-    envOverrides:
-      # Rust binary uses the OTLP HTTP exporter; point it at the collector's
-      # HTTP port (4317 is gRPC-only and rejects HTTP with "bogus greeting").
-      - name: OTEL_EXPORTER_OTLP_ENDPOINT
-        value: http://$(OTEL_COLLECTOR_NAME):4318
-  checkout:
-    envOverrides:
-      # Go otlp*http exporters need the collector's HTTP port, not gRPC 4317.
-      - name: OTEL_EXPORTER_OTLP_ENDPOINT
-        value: http://$(OTEL_COLLECTOR_NAME):4318
   product-catalog:
     # product-catalog uses the otelconf declarative-config SDK, which is a no-op
     # unless OTEL_CONFIG_FILE points at a config file (compose mounts otel-config.yml;
     # the k8s deployment was missing it). The config uses otlp_grpc, so the endpoint
     # must be the gRPC port 4317.
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
     envOverrides:
       - name: OTEL_CONFIG_FILE
         value: /otel-config.yml
@@ -178,11 +173,6 @@ components:
                   - host:
                   - process:
                   - service:
-  mcp:
-    envOverrides:
-      # Traceloop SDK exports OTLP over HTTP; use the HTTP port, not gRPC 4317.
-      - name: OTEL_EXPORTER_OTLP_ENDPOINT
-        value: http://$(OTEL_COLLECTOR_NAME):4318
   postgresql:
     command:
       - "docker-entrypoint.sh"
@@ -222,9 +212,6 @@ components:
       type: LoadBalancer
       annotations:
         service.beta.kubernetes.io/azure-dns-label-name: astroshop-postgres
-  product-catalog:
-    podAnnotations:
-      oneagent.dynatrace.com/inject: "false"
   quote:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
@@ -235,6 +222,10 @@ components:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
     envOverrides:
+      # Rust binary uses the OTLP HTTP exporter; point it at the collector's
+      # HTTP port (4317 is gRPC-only and rejects HTTP with "bogus greeting").
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4318
       - name: FLAGD_HOST
         value: "flagd"
       - name: FLAGD_PORT
@@ -385,10 +376,9 @@ components:
       # reaches this server in-cluster as http://mcp:8011/mcp, so trust that host.
       - name: FASTMCP_HTTP_ALLOWED_HOSTS
         value: '["mcp", "mcp:8011", "localhost", "127.0.0.1"]'
+      # Traceloop SDK exports OTLP over HTTP; use the HTTP port, not gRPC 4317.
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
-        value: $(OTEL_COLLECTOR_NAME):4317
-      - name: OTEL_EXPORTER_OTLP_INSECURE
-        value: "true"
+        value: http://$(OTEL_COLLECTOR_NAME):4318
 
   chatbot:
     enabled: true
