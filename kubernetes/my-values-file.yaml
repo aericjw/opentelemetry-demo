@@ -77,6 +77,10 @@ components:
         value: "chatbot"
       - name: CHATBOT_PORT
         value: "7860"
+      - name: OPAMP_SERVER_HOST
+        value: "opamp-server"
+      - name: OPAMP_SERVER_UI_PORT
+        value: "4321"
     service:
       type: LoadBalancer
       annotations:
@@ -103,13 +107,82 @@ components:
         memory: 2Gi
       limits:
         cpu: 5000m
-        memory: 4Gi
+        memory: 8Gi
     envOverrides:
     - name: LOCUST_USERS
       value: "10"
   payment:
     podAnnotations:
       oneagent.dynatrace.com/inject: "false"
+    envOverrides:
+      - name: OTEL_EXPORTER_OTLP_PROTOCOL
+        value: grpc
+  shipping:
+    envOverrides:
+      # Rust binary uses the OTLP HTTP exporter; point it at the collector's
+      # HTTP port (4317 is gRPC-only and rejects HTTP with "bogus greeting").
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4318
+  checkout:
+    envOverrides:
+      # Go otlp*http exporters need the collector's HTTP port, not gRPC 4317.
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4318
+  product-catalog:
+    # product-catalog uses the otelconf declarative-config SDK, which is a no-op
+    # unless OTEL_CONFIG_FILE points at a config file (compose mounts otel-config.yml;
+    # the k8s deployment was missing it). The config uses otlp_grpc, so the endpoint
+    # must be the gRPC port 4317.
+    envOverrides:
+      - name: OTEL_CONFIG_FILE
+        value: /otel-config.yml
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4317
+    mountedConfigMaps:
+      - name: otel-config
+        mountPath: /otel-config.yml
+        subPath: otel-config.yml
+        data:
+          otel-config.yml: |
+            file_format: "1.0"
+            disabled: false
+            log_level: info
+            logger_provider:
+              processors:
+                - batch:
+                    exporter:
+                      otlp_grpc:
+                        endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+            meter_provider:
+              readers:
+                - periodic:
+                    exporter:
+                      otlp_grpc:
+                        endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+                        temporality_preference: ${OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE:-delta}
+            tracer_provider:
+              processors:
+                - batch:
+                    exporter:
+                      otlp_grpc:
+                        endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+            propagator:
+              composite:
+                - tracecontext:
+                - baggage:
+            resource:
+              attributes_list: ${OTEL_RESOURCE_ATTRIBUTES}
+              detection/development:
+                detectors:
+                  - container:
+                  - host:
+                  - process:
+                  - service:
+  mcp:
+    envOverrides:
+      # Traceloop SDK exports OTLP over HTTP; use the HTTP port, not gRPC 4317.
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4318
   postgresql:
     command:
       - "docker-entrypoint.sh"
@@ -218,6 +291,22 @@ components:
         value: 8080
       - name: otlp-grpc
         value: 4317
+  opamp-server:
+    enabled: true
+    useDefault:
+      env: false
+    podAnnotations:
+      oneagent.dynatrace.com/inject: "false"
+    resources:
+      requests:
+        memory: 65Mi
+      limits:
+        memory: 65Mi
+    ports:
+      - name: http
+        value: 4321
+      - name: opamp
+        value: 4320
   agent:
     enabled: true
     useDefault:
@@ -291,6 +380,11 @@ components:
         value: "8011"
       - name: APPLICATION_ENDPOINT
         value: frontend:8080
+      # FastMCP 3.x rejects requests whose Host header is not trusted (DNS
+      # rebinding protection), returning 421 Misdirected Request. The agent
+      # reaches this server in-cluster as http://mcp:8011/mcp, so trust that host.
+      - name: FASTMCP_HTTP_ALLOWED_HOSTS
+        value: '["mcp", "mcp:8011", "localhost", "127.0.0.1"]'
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: $(OTEL_COLLECTOR_NAME):4317
       - name: OTEL_EXPORTER_OTLP_INSECURE
@@ -338,16 +432,16 @@ opentelemetry-collector:
       - --feature-gates=service.profilesSupport
   presets:
       hostMetrics:
-        enabled: true
+        enabled: false
       kubernetesAttributes:
-        enabled: true
+        enabled: false
       kubeletMetrics:
-        enabled: true
+        enabled: false
       clusterMetrics:
-        enabled: true
+        enabled: false
       annotationDiscovery:
         metrics:
-          enabled: true
+          enabled: false
   resources:
     limits:
       memory: 300Mi
@@ -500,10 +594,17 @@ opentelemetry-collector:
         error_mode: ignore
         profile_conditions:
           - resource.attributes["k8s.namespace.name"] != "astroshop"
-      cumulativetodelta: {}
+      cumulativetodelta:
+        max_staleness: 25h
     
     connectors:
       spanmetrics: {}
+
+    extensions:
+      opamp:
+        server:
+          ws:
+            endpoint: wss://opamp-server:4320/v1/opamp
 
     service:
       pipelines:
@@ -522,5 +623,32 @@ opentelemetry-collector:
           receivers: [otlp]
           processors: [memory_limiter, resourcedetection, k8sattributes, resource, filter/profiles]
           exporters: [otlp_grpc/firepit, debug]
+      telemetry:
+        metrics:
+          level: detailed
+          readers:
+            - periodic:
+                interval: 60000
+                exporter:
+                  otlp:
+                    temporality_preference: delta
+                    protocol: http/protobuf
+                    endpoint: "http://bindplane-gateway-agent.bindplane-agent.svc.cluster.local:4318"
+        logs:
+          level: debug
+          encoding: json
+          processors:
+            - batch:
+                exporter:
+                  otlp:
+                    protocol: http/protobuf
+                    endpoint: "http://bindplane-gateway-agent.bindplane-agent.svc.cluster.local:4318"
+        traces:
+          processors:
+            - batch:
+                exporter:
+                  otlp:
+                    protocol: http/protobuf
+                    endpoint: "http://bindplane-gateway-agent.bindplane-agent.svc.cluster.local:4318"
 
 # helm upgrade astroshop kubernetes/_chart-cache/opentelemetry-demo -f kubernetes/my-values-file.yaml -n astroshop

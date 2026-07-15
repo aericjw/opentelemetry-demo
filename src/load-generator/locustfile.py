@@ -374,6 +374,13 @@ if browser_traffic_enabled:
                     logging.error(f"Error in add to cart task: {str(e)}")
 
 async def add_baggage_header(route: Route, request: Request):
+    # Only tag first-party app requests as synthetic. Injecting a custom `baggage`
+    # header into third-party cross-origin requests (e.g. the Dynatrace RUM beacon)
+    # forces a CORS preflight the third party rejects, which silently drops all RUM
+    # data from synthetic browser sessions.
+    if 'dynatracelabs.com' in request.url or 'js-cdn.dynatrace' in request.url:
+        await route.continue_()
+        return
     existing_baggage = request.headers.get('baggage', '')
     headers = {
         **request.headers,
