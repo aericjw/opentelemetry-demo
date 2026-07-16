@@ -7,11 +7,11 @@ a steady, repeatable stream of **Dynatrace mobile RUM sessions**.
 The backend load generator under [`src/load-generator`](../../load-generator)
 only produces server-side traffic. Mobile RUM is captured by the Dynatrace
 OneAgent embedded in the app, which means telemetry only flows when the real app
-runs and its UI is exercised — that is what these flows do.
+runs and its UI is exercised - that is what these flows do.
 
 By default the flows point the app at the publicly hosted demo backend:
 
-```
+```text
 http://astroshop.westus2.cloudapp.azure.com:8080
 ```
 
@@ -33,7 +33,7 @@ http://astroshop.westus2.cloudapp.azure.com:8080
    ```
 
    The app's Dynatrace `userOptIn` is `false`, which means RUM data is captured
-   automatically without an in-app consent prompt — no extra steps are needed to
+   automatically without an in-app consent prompt - no extra steps are needed to
    start collecting sessions.
 
 3. Keep **exactly one** simulator/emulator running. Maestro drives whichever
@@ -89,15 +89,15 @@ maps to a distinct RUM session.
 
 ## How consistency is achieved
 
-- **Fixed backend** — the endpoint is set once via the Settings tab and persists
+- **Fixed backend** - the endpoint is set once via the Settings tab and persists
   across launches, so every session targets the same environment.
-- **Deterministic selectors** — the app exposes `testID`s
+- **Deterministic selectors** - the app exposes `testID`s
   (`tab-products`, `tab-cart`, `tab-settings`, `product-add-to-cart`,
   `cart-empty`, `checkout-place-order`, `settings-frontend-url`,
   `setting-apply`) so flows don't break on copy or layout changes.
-- **Randomized cadence and journey mix** — avoids an unnatural burst of
+- **Randomized cadence and journey mix** - avoids an unnatural burst of
   identical sessions while keeping a predictable, always-on flow of traffic.
-- **Resilient loop** — a failed journey is logged and the loop continues, so a
+- **Resilient loop** - a failed journey is logged and the loop continues, so a
   transient network blip doesn't stop the traffic stream.
 
 ## Notes
