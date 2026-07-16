@@ -65,7 +65,7 @@ internal class Consumer : BackgroundService
                 {
                     using var activity = MyActivitySource.StartActivity("order-consumed",  ActivityKind.Internal);
                     var consumeResult = _consumer.Consume(stoppingToken);
-                    var idleInTransactionSeconds = await _featureClient.GetIntegerValueAsync("accountingIdleInTransaction", 0);
+                    var idleInTransactionSeconds = await _featureClient.GetIntegerValueAsync("accountingIdleInTransaction", 0, stoppingToken);
                     ProcessMessage(consumeResult.Message, idleInTransactionSeconds);
                 }
                 catch (ConsumeException e)
