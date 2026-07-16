@@ -168,6 +168,139 @@
         "off": 0
       },
       "defaultVariant": "off"
+    },
+    "productCatalogSlowQuery": {
+      "description": "Simulates a missing-index / query-plan regression in the product catalog Postgres database: each catalog read runs an inefficient full-scan + sort workload, driving up query latency and CPU. Severity scales the number of rows scanned. Surfaces as a top statement in pg_stat_statements and slow database calls in Dynatrace.",
+      "state": "ENABLED",
+      "variants": {
+        "off": 0,
+        "light": 1,
+        "moderate": 5,
+        "severe": 15
+      },
+      "defaultVariant": "off"
+    },
+    "productCatalogConnectionPoolExhaustion": {
+      "description": "Simulates Postgres connection-pool exhaustion at scale: the product catalog holds its pooled connections open inside idle-in-transaction backends, starving real requests until they time out. Reproduces 'remaining connection slots' pressure, idle-in-transaction backends, and connection-acquisition timeouts.",
+      "state": "ENABLED",
+      "variants": {
+        "on": true,
+        "off": false
+      },
+      "defaultVariant": "off"
+    },
+    "productCatalogQueryStorm": {
+      "description": "Simulates the N+1 / ORM lazy-loading anti-pattern in the product catalog: listing products issues an additional per-product query instead of a single set-based read, flooding Postgres with a storm of small queries and inflating query throughput and connection churn.",
+      "state": "ENABLED",
+      "variants": {
+        "on": true,
+        "off": false
+      },
+      "defaultVariant": "off"
+    },
+    "productCatalogLogFlood": {
+      "description": "Log Management demo: the product catalog emits N additional log records per request, simulating a chatty/debug-logging regression that inflates log ingest volume and cost and drowns real signal. The variant is the number of extra records per request.",
+      "state": "ENABLED",
+      "variants": {
+        "off": 0,
+        "10x": 10,
+        "100x": 100,
+        "1000x": 1000
+      },
+      "defaultVariant": "off"
+    },
+    "productCatalogMalformedLogs": {
+      "description": "Log Management demo: the product catalog emits structurally broken log records (truncated JSON, embedded newlines, unbalanced delimiters), reproducing a broken structured-logging deploy that breaks downstream log parsing/OpenPipeline processing.",
+      "state": "ENABLED",
+      "variants": {
+        "on": true,
+        "off": false
+      },
+      "defaultVariant": "off"
+    },
+    "productCatalogMemoryLeak": {
+      "description": "Infrastructure demo: the product catalog retains memory on every request, producing a gradual heap-growth trend (distinct from the abrupt emailMemoryLeak) that drives memory-saturation forecasting, anomaly detection, and eventual container OOMKill. The variant is the megabytes retained per request.",
+      "state": "ENABLED",
+      "variants": {
+        "off": 0,
+        "1mb": 1,
+        "5mb": 5,
+        "20mb": 20
+      },
+      "defaultVariant": "off"
+    },
+    "checkoutConversionDrop": {
+      "description": "Business Observability demo: the checkout silently abandons a fraction of orders before payment with a benign non-error outcome (recorded as demo.order.outcome=abandoned on the order metric and an order.abandoned log event), producing a pure conversion/funnel dip with no technical error to trace. Extract as a bizevent in OpenPipeline.",
+      "state": "ENABLED",
+      "variants": {
+        "100%": 1,
+        "50%": 0.5,
+        "25%": 0.25,
+        "10%": 0.1,
+        "off": 0
+      },
+      "defaultVariant": "off"
+    },
+    "checkoutRevenueLeak": {
+      "description": "Business Observability demo: the checkout silently undercharges each order by the given fraction, so order volume holds steady while revenue per order (demo.order.amount on spans, logs and the revenue counter) drops - a margin/revenue-leakage anomaly visible only in business data. Extract as a bizevent in OpenPipeline.",
+      "state": "ENABLED",
+      "variants": {
+        "off": 0,
+        "5%": 0.05,
+        "15%": 0.15,
+        "30%": 0.3
+      },
+      "defaultVariant": "off"
+    },
+    "aiAgentRunawayLoop": {
+      "description": "AI Observability demo: the shop assistant performs N extra backend tool calls (list_products) after answering, reproducing a runaway agent stuck in a tool-calling loop. Inflates gen_ai tool-call spans and drives load on downstream services. The variant is the number of extra tool iterations.",
+      "state": "ENABLED",
+      "variants": {
+        "off": 0,
+        "5x": 5,
+        "20x": 20
+      },
+      "defaultVariant": "off"
+    },
+    "aiAgentSlowResponse": {
+      "description": "AI Observability demo: the shop assistant injects the given number of seconds of latency into its workflow, simulating slow model/provider responses and inflating gen_ai request duration. The variant is the delay in seconds.",
+      "state": "ENABLED",
+      "variants": {
+        "off": 0,
+        "2sec": 2,
+        "5sec": 5,
+        "10sec": 10
+      },
+      "defaultVariant": "off"
+    },
+    "frontendJsErrorStorm": {
+      "description": "Frontend/RUM demo: the storefront raises a stream of handled JavaScript exceptions reported to Dynatrace RUM, simulating a bad client-side deploy and spiking the RUM JavaScript error rate without breaking the page.",
+      "state": "ENABLED",
+      "variants": {
+        "on": true,
+        "off": false
+      },
+      "defaultVariant": "off"
+    },
+    "frontendLayoutShift": {
+      "description": "Frontend/RUM demo: the storefront injects a late-expanding banner that pushes content down after paint, degrading the Cumulative Layout Shift (CLS) Core Web Vital captured by Dynatrace RUM.",
+      "state": "ENABLED",
+      "variants": {
+        "on": true,
+        "off": false
+      },
+      "defaultVariant": "off"
+    },
+    "accountingIdleInTransaction": {
+      "description": "Data-tier demo: the accounting Kafka consumer holds each write transaction open and idle for the given number of seconds after persisting an order, reproducing idle-in-transaction backends that hold row locks, block autovacuum on the accounting tables, and back up Kafka consumer lag. The variant is the hold time in seconds.",
+      "state": "ENABLED",
+      "variants": {
+        "off": 0,
+        "2sec": 2,
+        "5sec": 5,
+        "10sec": 10
+      },
+      "defaultVariant": "off"
     }
   }
 }

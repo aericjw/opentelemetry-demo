@@ -45,12 +45,16 @@ services:
       - OTEL_EXPORTER_OTLP_INSECURE=true
       - OTEL_RESOURCE_ATTRIBUTES=${OTEL_RESOURCE_ATTRIBUTES},service.criticality=low
       - OTEL_SERVICE_NAME=agent
+      - FLAGD_HOST
+      - FLAGD_OFREP_PORT
     depends_on:
       otel-collector:
         condition: service_started
       product-catalog:
         condition: service_started
       mcp:
+        condition: service_started
+      flagd:
         condition: service_started
     logging:
       driver: "json-file"

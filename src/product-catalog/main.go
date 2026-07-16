@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -59,6 +60,23 @@ var (
 	reg    metric.Registration
 )
 
+// Bounded connection pool so the connection-pool-exhaustion feature flag can
+// realistically starve the pool, and so normal operation reflects production
+// sizing rather than Go's unbounded default.
+const (
+	maxDBConns             = 15
+	connectionHogDuration  = 30 * time.Second
+	slowQueryRowMultiplier = 50000
+)
+
+var (
+	connectionHogMu     sync.Mutex
+	connectionHogActive bool
+
+	leakedMemoryMu sync.Mutex
+	leakedMemory   [][]byte
+)
+
 func init() {
 	logger = otelslog.NewLogger("product-catalog")
 }
@@ -84,6 +102,10 @@ func initDatabase() error {
 	if err != nil {
 		return fmt.Errorf("failed to open database connection: %w", err)
 	}
+
+	db.SetMaxOpenConns(maxDBConns)
+	db.SetMaxIdleConns(maxDBConns)
+	db.SetConnMaxLifetime(5 * time.Minute)
 
 	reg, err = otelsql.RegisterDBStatsMetrics(db, dbAttrs)
 	if err != nil {
@@ -351,10 +373,22 @@ func (p *productCatalog) Watch(req *healthpb.HealthCheckRequest, ws healthpb.Hea
 func (p *productCatalog) ListProducts(ctx context.Context, req *pb.Empty) (*pb.ListProductsResponse, error) {
 	span := trace.SpanFromContext(ctx)
 
+	p.injectDatabaseChaos(ctx)
+
 	products, err := loadProductsFromDB(ctx)
 	if err != nil {
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "failed to load products: %v", err)
+	}
+
+	// N+1 query anti-pattern: re-fetch each product individually, flooding the
+	// database with a storm of small queries instead of the single set-based read.
+	if flags.ProductCatalogQueryStorm.Value(ctx, openfeature.NewTargetlessEvaluationContext(map[string]any{})) {
+		for _, prod := range products {
+			if _, err := getProductFromDB(ctx, prod.Id); err != nil {
+				logger.WarnContext(ctx, "product catalog query-storm feature flag lookup failed", slog.Any("error", err))
+			}
+		}
 	}
 
 	span.SetAttributes(
@@ -368,6 +402,8 @@ func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductReque
 	span.SetAttributes(
 		attribute.String("demo.product.id", req.Id),
 	)
+
+	p.injectDatabaseChaos(ctx)
 
 	// GetProduct will fail on a specific product when feature flag is enabled
 	if p.checkProductFailure(ctx, req.Id) {
@@ -404,6 +440,8 @@ func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductReque
 func (p *productCatalog) SearchProducts(ctx context.Context, req *pb.SearchProductsRequest) (*pb.SearchProductsResponse, error) {
 	span := trace.SpanFromContext(ctx)
 
+	p.injectDatabaseChaos(ctx)
+
 	result, err := searchProductsFromDB(ctx, req.Query)
 	if err != nil {
 		span.SetStatus(otelcodes.Error, err.Error())
@@ -418,4 +456,134 @@ func (p *productCatalog) SearchProducts(ctx context.Context, req *pb.SearchProdu
 
 func (p *productCatalog) checkProductFailure(ctx context.Context, id string) bool {
 	return flags.ProductCatalogFailure.Value(ctx, openfeature.NewTargetlessEvaluationContext(map[string]any{"product_id": id}))
+}
+
+// injectDatabaseChaos applies the demo feature flags that are shared across
+// catalog reads: the Postgres-focused flags (inefficient slow query and
+// connection-pool exhaustion) plus the Log Management and Infrastructure flags
+// (log flooding, malformed logs, and a gradual memory leak).
+func (p *productCatalog) injectDatabaseChaos(ctx context.Context) {
+	evalCtx := openfeature.NewTargetlessEvaluationContext(map[string]any{})
+
+	if severity := flags.ProductCatalogSlowQuery.Value(ctx, evalCtx); severity > 0 {
+		runSlowQuery(ctx, severity)
+	}
+
+	if flags.ProductCatalogConnectionPoolExhaustion.Value(ctx, evalCtx) {
+		exhaustConnectionPool(ctx)
+	}
+
+	if extra := flags.ProductCatalogLogFlood.Value(ctx, evalCtx); extra > 0 {
+		floodLogs(ctx, extra)
+	}
+
+	if flags.ProductCatalogMalformedLogs.Value(ctx, evalCtx) {
+		emitMalformedLog(ctx)
+	}
+
+	if mb := flags.ProductCatalogMemoryLeak.Value(ctx, evalCtx); mb > 0 {
+		leakMemory(mb)
+	}
+}
+
+// floodLogs emits n additional log records for a single request, simulating a
+// chatty/debug-logging regression that inflates log ingest volume and cost.
+func floodLogs(ctx context.Context, n int64) {
+	for i := int64(0); i < n; i++ {
+		logger.LogAttrs(
+			ctx,
+			slog.LevelInfo, "product catalog verbose diagnostic trace",
+			slog.Int64("demo.log_flood.sequence", i),
+			slog.String("demo.log_flood.detail", "processing catalog request step; verbose diagnostics enabled"),
+		)
+	}
+}
+
+// emitMalformedLog writes a structurally broken log record (truncated JSON,
+// embedded newlines, unbalanced delimiters) to reproduce a broken structured-
+// logging deploy that breaks downstream log parsing / OpenPipeline processing.
+func emitMalformedLog(ctx context.Context) {
+	logger.InfoContext(ctx, "{\"event\":\"catalog_request\",\"nested\":{\"id\":\"abc\",\n\"status\":\"OK\",\"unterminated\":\"value without closing quote, \"count\":]}")
+}
+
+// leakMemory retains mb megabytes of memory that is never released, producing a
+// gradual heap-growth trend for memory-saturation forecasting and OOMKill demos.
+func leakMemory(mb int64) {
+	block := make([]byte, mb*1024*1024)
+	// Touch each page so the pages are actually resident, not just reserved.
+	for i := 0; i < len(block); i += 4096 {
+		block[i] = 1
+	}
+	leakedMemoryMu.Lock()
+	leakedMemory = append(leakedMemory, block)
+	leakedMemoryMu.Unlock()
+}
+
+// runSlowQuery executes an intentionally inefficient full-scan + sort workload,
+// simulating a missing index or query-plan regression at scale. The severity
+// scales how many rows the query must materialize and sort. The result is
+// discarded so response correctness is unaffected.
+func runSlowQuery(ctx context.Context, severity int64) {
+	if db == nil {
+		return
+	}
+
+	rows := severity * slowQueryRowMultiplier
+	_, err := db.ExecContext(ctx, `
+		SELECT p.id
+		FROM catalog.products p
+		CROSS JOIN generate_series(1, $1) AS gs
+		ORDER BY md5(p.description || gs::text)
+		LIMIT 1
+	`, rows)
+	if err != nil {
+		logger.WarnContext(ctx, "product catalog slow-query feature flag workload failed", slog.Any("error", err))
+	}
+}
+
+// exhaustConnectionPool holds every pooled connection open inside an idle
+// transaction, reproducing connection-pool exhaustion and idle-in-transaction
+// backends. A single batch of holders is launched at a time; once they drain
+// the pool recovers, and the flag re-triggers on the next request if still on.
+func exhaustConnectionPool(ctx context.Context) {
+	connectionHogMu.Lock()
+	defer connectionHogMu.Unlock()
+
+	if connectionHogActive || db == nil {
+		return
+	}
+	connectionHogActive = true
+
+	for i := 0; i < maxDBConns; i++ {
+		go holdConnection()
+	}
+
+	go func() {
+		time.Sleep(connectionHogDuration)
+		connectionHogMu.Lock()
+		connectionHogActive = false
+		connectionHogMu.Unlock()
+	}()
+
+	logger.WarnContext(ctx, "product catalog connection-pool-exhaustion feature flag engaged")
+}
+
+func holdConnection() {
+	conn, err := db.Conn(context.Background())
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	tx, err := conn.BeginTx(context.Background(), nil)
+	if err != nil {
+		return
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(context.Background(), "SELECT 1"); err != nil {
+		return
+	}
+
+	time.Sleep(connectionHogDuration)
 }

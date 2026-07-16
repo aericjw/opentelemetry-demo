@@ -13,6 +13,7 @@ import { identifyUser, setSessionProperties } from '../utils/telemetry/Rum';
 import SessionGateway from '../gateways/Session.gateway';
 import { OpenFeatureProvider, OpenFeature } from '@openfeature/react-sdk';
 import { FlagdWebProvider } from '@openfeature/flagd-web-provider';
+import ChaosEffects from '../components/ChaosEffects';
 
 declare global {
   interface Window {
@@ -75,6 +76,7 @@ function MyApp({ Component, pageProps }: AppProps) {
   return (
     <ThemeProvider theme={Theme}>
       <OpenFeatureProvider>
+        <ChaosEffects />
         <QueryClientProvider client={queryClient}>
           <CurrencyProvider>
             <CartProvider>

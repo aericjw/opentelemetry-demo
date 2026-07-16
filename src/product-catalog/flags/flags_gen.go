@@ -47,3 +47,135 @@ var ProductCatalogFailure = struct {
 		return client.BooleanValueDetails(ctx, "productCatalogFailure", false, evalCtx)
 	},
 }
+
+// ProductCatalogSlowQuery returns the value of the "productCatalogSlowQuery" feature flag.
+// severity of an inefficient full-scan + sort workload run against the catalog database on each read (0 disables)
+//
+// The flag is a type of integer and defaults to 0.
+var ProductCatalogSlowQuery = struct {
+	fmt.Stringer
+	// Value returns the value of the [ProductCatalogSlowQuery] flag.
+	Value evaluationValue[int64]
+
+	// ValueWithDetails returns the evaluation details of the [ProductCatalogSlowQuery] flag
+	// and the evaluation error, if any.
+	ValueWithDetails evaluationDetails[int64]
+}{
+	Stringer: stringer("productCatalogSlowQuery"),
+	Value: func(ctx context.Context, evalCtx openfeature.EvaluationContext) int64 {
+		return client.Int(ctx, "productCatalogSlowQuery", 0, evalCtx)
+	},
+	ValueWithDetails: func(ctx context.Context, evalCtx openfeature.EvaluationContext) (openfeature.GenericEvaluationDetails[int64], error) {
+		return client.IntValueDetails(ctx, "productCatalogSlowQuery", 0, evalCtx)
+	},
+}
+
+// ProductCatalogConnectionPoolExhaustion returns the value of the "productCatalogConnectionPoolExhaustion" feature flag.
+// holds pooled Postgres connections open in idle transactions to simulate connection-pool exhaustion
+//
+// The flag is a type of boolean and defaults to false.
+var ProductCatalogConnectionPoolExhaustion = struct {
+	fmt.Stringer
+	// Value returns the value of the [ProductCatalogConnectionPoolExhaustion] flag.
+	Value evaluationValue[bool]
+
+	// ValueWithDetails returns the evaluation details of the [ProductCatalogConnectionPoolExhaustion] flag
+	// and the evaluation error, if any.
+	ValueWithDetails evaluationDetails[bool]
+}{
+	Stringer: stringer("productCatalogConnectionPoolExhaustion"),
+	Value: func(ctx context.Context, evalCtx openfeature.EvaluationContext) bool {
+		return client.Boolean(ctx, "productCatalogConnectionPoolExhaustion", false, evalCtx)
+	},
+	ValueWithDetails: func(ctx context.Context, evalCtx openfeature.EvaluationContext) (openfeature.GenericEvaluationDetails[bool], error) {
+		return client.BooleanValueDetails(ctx, "productCatalogConnectionPoolExhaustion", false, evalCtx)
+	},
+}
+
+// ProductCatalogQueryStorm returns the value of the "productCatalogQueryStorm" feature flag.
+// issues an extra per-product query when listing products to simulate the N+1 query anti-pattern
+//
+// The flag is a type of boolean and defaults to false.
+var ProductCatalogQueryStorm = struct {
+	fmt.Stringer
+	// Value returns the value of the [ProductCatalogQueryStorm] flag.
+	Value evaluationValue[bool]
+
+	// ValueWithDetails returns the evaluation details of the [ProductCatalogQueryStorm] flag
+	// and the evaluation error, if any.
+	ValueWithDetails evaluationDetails[bool]
+}{
+	Stringer: stringer("productCatalogQueryStorm"),
+	Value: func(ctx context.Context, evalCtx openfeature.EvaluationContext) bool {
+		return client.Boolean(ctx, "productCatalogQueryStorm", false, evalCtx)
+	},
+	ValueWithDetails: func(ctx context.Context, evalCtx openfeature.EvaluationContext) (openfeature.GenericEvaluationDetails[bool], error) {
+		return client.BooleanValueDetails(ctx, "productCatalogQueryStorm", false, evalCtx)
+	},
+}
+
+// ProductCatalogLogFlood returns the value of the "productCatalogLogFlood" feature flag.
+// number of extra log records emitted per request to simulate a chatty-logging regression
+//
+// The flag is a type of integer and defaults to 0.
+var ProductCatalogLogFlood = struct {
+	fmt.Stringer
+	// Value returns the value of the [ProductCatalogLogFlood] flag.
+	Value evaluationValue[int64]
+
+	// ValueWithDetails returns the evaluation details of the [ProductCatalogLogFlood] flag
+	// and the evaluation error, if any.
+	ValueWithDetails evaluationDetails[int64]
+}{
+	Stringer: stringer("productCatalogLogFlood"),
+	Value: func(ctx context.Context, evalCtx openfeature.EvaluationContext) int64 {
+		return client.Int(ctx, "productCatalogLogFlood", 0, evalCtx)
+	},
+	ValueWithDetails: func(ctx context.Context, evalCtx openfeature.EvaluationContext) (openfeature.GenericEvaluationDetails[int64], error) {
+		return client.IntValueDetails(ctx, "productCatalogLogFlood", 0, evalCtx)
+	},
+}
+
+// ProductCatalogMalformedLogs returns the value of the "productCatalogMalformedLogs" feature flag.
+// emits structurally broken log records to simulate a broken structured-logging deploy
+//
+// The flag is a type of boolean and defaults to false.
+var ProductCatalogMalformedLogs = struct {
+	fmt.Stringer
+	// Value returns the value of the [ProductCatalogMalformedLogs] flag.
+	Value evaluationValue[bool]
+
+	// ValueWithDetails returns the evaluation details of the [ProductCatalogMalformedLogs] flag
+	// and the evaluation error, if any.
+	ValueWithDetails evaluationDetails[bool]
+}{
+	Stringer: stringer("productCatalogMalformedLogs"),
+	Value: func(ctx context.Context, evalCtx openfeature.EvaluationContext) bool {
+		return client.Boolean(ctx, "productCatalogMalformedLogs", false, evalCtx)
+	},
+	ValueWithDetails: func(ctx context.Context, evalCtx openfeature.EvaluationContext) (openfeature.GenericEvaluationDetails[bool], error) {
+		return client.BooleanValueDetails(ctx, "productCatalogMalformedLogs", false, evalCtx)
+	},
+}
+
+// ProductCatalogMemoryLeak returns the value of the "productCatalogMemoryLeak" feature flag.
+// megabytes of memory retained per request to simulate a gradual memory leak
+//
+// The flag is a type of integer and defaults to 0.
+var ProductCatalogMemoryLeak = struct {
+	fmt.Stringer
+	// Value returns the value of the [ProductCatalogMemoryLeak] flag.
+	Value evaluationValue[int64]
+
+	// ValueWithDetails returns the evaluation details of the [ProductCatalogMemoryLeak] flag
+	// and the evaluation error, if any.
+	ValueWithDetails evaluationDetails[int64]
+}{
+	Stringer: stringer("productCatalogMemoryLeak"),
+	Value: func(ctx context.Context, evalCtx openfeature.EvaluationContext) int64 {
+		return client.Int(ctx, "productCatalogMemoryLeak", 0, evalCtx)
+	},
+	ValueWithDetails: func(ctx context.Context, evalCtx openfeature.EvaluationContext) (openfeature.GenericEvaluationDetails[int64], error) {
+		return client.IntValueDetails(ctx, "productCatalogMemoryLeak", 0, evalCtx)
+	},
+}

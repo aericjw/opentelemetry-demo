@@ -10,6 +10,16 @@
       "defaultValue": false,
       "description": "simulates payment unreachable issue",
       "flagType": "boolean"
+    },
+    "checkoutConversionDrop": {
+      "defaultValue": 0,
+      "description": "fraction of orders silently abandoned before payment to simulate a conversion-rate drop",
+      "flagType": "float"
+    },
+    "checkoutRevenueLeak": {
+      "defaultValue": 0,
+      "description": "fraction by which each order is silently undercharged to simulate revenue leakage",
+      "flagType": "float"
     }
   }
 }

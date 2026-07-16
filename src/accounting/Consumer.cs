@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Npgsql;
 using Oteldemo;
 using Microsoft.EntityFrameworkCore;
+using OpenFeature;
 using System.Diagnostics;
 
 namespace Accounting;
@@ -33,11 +34,13 @@ internal class Consumer : BackgroundService
     private readonly ILogger _logger;
     private readonly IConsumer<string, byte[]> _consumer;
     private readonly string? _dbConnectionString;
+    private readonly IFeatureClient _featureClient;
     private static readonly ActivitySource MyActivitySource = new("Accounting.Consumer");
 
-    public Consumer(ILogger<Consumer> logger)
+    public Consumer(ILogger<Consumer> logger, IFeatureClient featureClient)
     {
         _logger = logger;
+        _featureClient = featureClient;
 
         var servers = Environment.GetEnvironmentVariable("KAFKA_ADDR")
             ?? throw new InvalidOperationException("The KAFKA_ADDR environment variable is not set.");
@@ -62,7 +65,8 @@ internal class Consumer : BackgroundService
                 {
                     using var activity = MyActivitySource.StartActivity("order-consumed",  ActivityKind.Internal);
                     var consumeResult = _consumer.Consume(stoppingToken);
-                    ProcessMessage(consumeResult.Message);
+                    var idleInTransactionSeconds = await _featureClient.GetIntegerValueAsync("accountingIdleInTransaction", 0);
+                    ProcessMessage(consumeResult.Message, idleInTransactionSeconds);
                 }
                 catch (ConsumeException e)
                 {
@@ -80,7 +84,7 @@ internal class Consumer : BackgroundService
         }
     }
 
-    private void ProcessMessage(Message<string, byte[]> message)
+    private void ProcessMessage(Message<string, byte[]> message, int idleInTransactionSeconds)
     {
         try
         {
@@ -127,7 +131,23 @@ internal class Consumer : BackgroundService
                 OrderId = order.OrderId
             };
             dbContext.Add(shipping);
-            dbContext.SaveChanges();
+
+            if (idleInTransactionSeconds > 0)
+            {
+                // Data-tier demo (accountingIdleInTransaction flag): persist the
+                // order inside an explicit transaction that is then held open and
+                // idle, reproducing idle-in-transaction backends that hold row
+                // locks and block autovacuum on the accounting tables while Kafka
+                // consumer lag builds up behind the stalled consumer.
+                using var transaction = dbContext.Database.BeginTransaction();
+                dbContext.SaveChanges();
+                Thread.Sleep(TimeSpan.FromSeconds(idleInTransactionSeconds));
+                transaction.Commit();
+            }
+            else
+            {
+                dbContext.SaveChanges();
+            }
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {

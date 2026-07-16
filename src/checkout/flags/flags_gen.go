@@ -69,3 +69,47 @@ var PaymentUnreachable = struct {
 		return client.BooleanValueDetails(ctx, "paymentUnreachable", false, evalCtx)
 	},
 }
+
+// CheckoutConversionDrop returns the value of the "checkoutConversionDrop" feature flag.
+// fraction of orders silently abandoned before payment to simulate a conversion-rate drop
+//
+// The flag is a type of float and defaults to 0.
+var CheckoutConversionDrop = struct {
+	fmt.Stringer
+	// Value returns the value of the [CheckoutConversionDrop] flag.
+	Value evaluationValue[float64]
+
+	// ValueWithDetails returns the evaluation details of the [CheckoutConversionDrop] flag
+	// and the evaluation error, if any.
+	ValueWithDetails evaluationDetails[float64]
+}{
+	Stringer: stringer("checkoutConversionDrop"),
+	Value: func(ctx context.Context, evalCtx openfeature.EvaluationContext) float64 {
+		return client.Float(ctx, "checkoutConversionDrop", 0, evalCtx)
+	},
+	ValueWithDetails: func(ctx context.Context, evalCtx openfeature.EvaluationContext) (openfeature.GenericEvaluationDetails[float64], error) {
+		return client.FloatValueDetails(ctx, "checkoutConversionDrop", 0, evalCtx)
+	},
+}
+
+// CheckoutRevenueLeak returns the value of the "checkoutRevenueLeak" feature flag.
+// fraction by which each order is silently undercharged to simulate revenue leakage
+//
+// The flag is a type of float and defaults to 0.
+var CheckoutRevenueLeak = struct {
+	fmt.Stringer
+	// Value returns the value of the [CheckoutRevenueLeak] flag.
+	Value evaluationValue[float64]
+
+	// ValueWithDetails returns the evaluation details of the [CheckoutRevenueLeak] flag
+	// and the evaluation error, if any.
+	ValueWithDetails evaluationDetails[float64]
+}{
+	Stringer: stringer("checkoutRevenueLeak"),
+	Value: func(ctx context.Context, evalCtx openfeature.EvaluationContext) float64 {
+		return client.Float(ctx, "checkoutRevenueLeak", 0, evalCtx)
+	},
+	ValueWithDetails: func(ctx context.Context, evalCtx openfeature.EvaluationContext) (openfeature.GenericEvaluationDetails[float64], error) {
+		return client.FloatValueDetails(ctx, "checkoutRevenueLeak", 0, evalCtx)
+	},
+}

@@ -5,6 +5,36 @@
       "defaultValue": false,
       "description": "simulates a potential product catalog failure scenario",
       "flagType": "boolean"
+    },
+    "productCatalogSlowQuery": {
+      "defaultValue": 0,
+      "description": "severity of an inefficient full-scan + sort workload run against the catalog database on each read (0 disables)",
+      "flagType": "integer"
+    },
+    "productCatalogConnectionPoolExhaustion": {
+      "defaultValue": false,
+      "description": "holds pooled Postgres connections open in idle transactions to simulate connection-pool exhaustion",
+      "flagType": "boolean"
+    },
+    "productCatalogQueryStorm": {
+      "defaultValue": false,
+      "description": "issues an extra per-product query when listing products to simulate the N+1 query anti-pattern",
+      "flagType": "boolean"
+    },
+    "productCatalogLogFlood": {
+      "defaultValue": 0,
+      "description": "number of extra log records emitted per request to simulate a chatty-logging regression",
+      "flagType": "integer"
+    },
+    "productCatalogMalformedLogs": {
+      "defaultValue": false,
+      "description": "emits structurally broken log records to simulate a broken structured-logging deploy",
+      "flagType": "boolean"
+    },
+    "productCatalogMemoryLeak": {
+      "defaultValue": 0,
+      "description": "megabytes of memory retained per request to simulate a gradual memory leak",
+      "flagType": "integer"
     }
   }
 }

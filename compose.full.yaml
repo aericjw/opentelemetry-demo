@@ -30,11 +30,15 @@ services:
       - OTEL_SERVICE_NAME=accounting
       - DB_CONNECTION_STRING=Host=${POSTGRES_HOST};Username=astronomy_user;Password=${POSTGRES_ASTRONOMY_PASSWORD};Database=astronomy_db
       - OTEL_DOTNET_AUTO_TRACES_ENTITYFRAMEWORKCORE_INSTRUMENTATION_ENABLED=false
+      - FLAGD_HOST
+      - FLAGD_PORT
     depends_on:
       otel-collector:
         condition: service_started
       kafka:
         condition: service_healthy
+      flagd:
+        condition: service_started
     logging:
       driver: "json-file"
       options:

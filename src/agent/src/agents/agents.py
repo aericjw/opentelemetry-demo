@@ -3,6 +3,7 @@
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -16,6 +17,7 @@ from langchain_core.messages import AIMessage
 from langchain_mcp_adapters.tools import load_mcp_tools
 from opentelemetry import trace
 from pydantic import BaseModel
+from src.agents.feature_flags import get_flag
 from src.agents.llm import ChatLLM
 from src.agents.mcp_client import MCPClient
 from src.agents.tools import (
@@ -290,11 +292,39 @@ class Agent:
             logging.warning(f"Revision failed, keeping draft: {e}")
             return draft_answer
 
+    @task(name="ai_slow_response")
+    async def apply_slow_response(self):
+        """AI Observability demo flag: inject latency into the workflow to
+        simulate slow model/provider responses. VCR-safe (no model calls)."""
+        delay = await get_flag("aiAgentSlowResponse", 0)
+        if delay and delay > 0:
+            span = trace.get_current_span()
+            span.set_attribute("demo.agent.slow_response.seconds", delay)
+            await asyncio.sleep(delay)
+
+    @task(name="ai_runaway_tool_loop")
+    async def apply_runaway_loop(self):
+        """AI Observability demo flag: after answering, perform N extra backend
+        tool calls to reproduce a runaway agent stuck in a tool-calling loop.
+        Drives real load on downstream services; VCR-safe (no model calls)."""
+        iterations = await get_flag("aiAgentRunawayLoop", 0)
+        if not iterations or iterations <= 0:
+            return
+        span = trace.get_current_span()
+        span.set_attribute("demo.agent.runaway_loop.iterations", iterations)
+        for _ in range(int(iterations)):
+            try:
+                await list_products()
+            except Exception as e:
+                logging.debug(f"runaway loop tool call failed: {e}")
+
     @workflow(name="astronomy_shop_agent_workflow")
     async def run_agent(self, input_prompt, history: List[Dict] | None = None):
         model = ChatLLM()
         tools = await self.get_tool_list()
         try:
+            await self.apply_slow_response()
+
             messages = list(history) if history is not None else []
             messages.append({"role": "user", "content": input_prompt})
 
@@ -315,6 +345,8 @@ class Agent:
             span = trace.get_current_span()
             span.set_attribute("demo.agent.route", route)
             span.set_attribute("demo.agent.guardrail.verdict", verdict)
+
+            await self.apply_runaway_loop()
 
             return {"response": result}
         except Exception as e:

@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
+	"math/rand"
 	"net"
 	"net/http"
 	"os"
@@ -402,6 +404,35 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		total = money.Must(money.Sum(total, multPrice))
 	}
 
+	// Business Observability: silently undercharge the order by a fraction so
+	// order volume holds steady while revenue per order drops. The reduced total
+	// flows through the charge, span attributes, logs, metric and order.placed
+	// event, so the leak is only visible in the business data.
+	if leak := flags.CheckoutRevenueLeak.Value(ctx, openfeature.EvaluationContext{}); leak > 0 {
+		total = applyRevenueLeak(total, leak)
+		span.SetAttributes(attribute.Float64("demo.order.revenue_leak.fraction", leak))
+	}
+
+	// Business Observability: silently abandon a fraction of orders before
+	// payment to simulate a conversion-rate drop - a pure funnel dip recorded as
+	// a business outcome (demo.order.outcome=abandoned) and an order.abandoned
+	// event, with no technical fault recorded on the span.
+	if dropRate := flags.CheckoutConversionDrop.Value(ctx, openfeature.EvaluationContext{}); dropRate > 0 && rand.Float64() < dropRate {
+		potentialValue := float64(total.GetUnits()) + float64(total.GetNanos())/1e9
+		recordOrderOutcome(ctx, req.UserCurrency, "abandoned", 0)
+		emitOrderAbandonedEvent(ctx, orderID.String(), potentialValue, req.UserCurrency, customerAttrs)
+		span.AddEvent("order abandoned before payment")
+		logger.LogAttrs(
+			ctx,
+			slog.LevelInfo, "order abandoned before payment",
+			slog.String("demo.order.id", orderID.String()),
+			slog.String("demo.order.currency", req.UserCurrency),
+			slog.String("demo.order.outcome", "abandoned"),
+			slog.Float64("demo.order.potential_amount", potentialValue),
+		)
+		return nil, status.Error(codes.Aborted, "order abandoned before payment")
+	}
+
 	txID, err := cs.chargeCard(ctx, total, req.CreditCard)
 	if err != nil {
 		recordOrderOutcome(ctx, req.UserCurrency, "payment_failed", 0)
@@ -529,6 +560,53 @@ func emitOrderPlacedEvent(ctx context.Context, order *pb.OrderResult, totalPrice
 		totalUnits += int64(item.GetItem().GetQuantity())
 	}
 	attrs = append(attrs, otellog.Int64("demo.order.units.count", totalUnits))
+	for _, kv := range customerAttrs {
+		attrs = append(attrs, otellog.String(string(kv.Key), kv.Value.Emit()))
+	}
+	record.AddAttributes(attrs...)
+	eventLogger.Emit(ctx, record)
+}
+
+// applyRevenueLeak returns a copy of m reduced by the given fraction (0-1),
+// used by the checkoutRevenueLeak business-observability flag.
+func applyRevenueLeak(m *pb.Money, fraction float64) *pb.Money {
+	if fraction <= 0 {
+		return m
+	}
+	value := (float64(m.GetUnits()) + float64(m.GetNanos())/1e9) * (1 - fraction)
+	if value < 0 {
+		value = 0
+	}
+	units := int64(value)
+	nanos := int32(math.Round((value - float64(units)) * 1e9))
+	return &pb.Money{
+		CurrencyCode: m.GetCurrencyCode(),
+		Units:        units,
+		Nanos:        nanos,
+	}
+}
+
+// emitOrderAbandonedEvent emits a structured "order.abandoned" business event
+// for an order dropped before payment by the checkoutConversionDrop flag,
+// mirroring emitOrderPlacedEvent so conversion can be computed from the ratio
+// of order.placed to order.abandoned events.
+func emitOrderAbandonedEvent(ctx context.Context, orderID string, potentialAmount float64, currency string, customerAttrs []attribute.KeyValue) {
+	if eventLogger == nil {
+		return
+	}
+	var record otellog.Record
+	record.SetTimestamp(time.Now())
+	record.SetEventName("order.abandoned")
+	record.SetSeverity(otellog.SeverityInfo)
+	record.SetSeverityText("INFO")
+	record.SetBody(otellog.StringValue("order abandoned before payment"))
+
+	attrs := []otellog.KeyValue{
+		otellog.String("demo.order.id", orderID),
+		otellog.Float64("demo.order.potential_amount", potentialAmount),
+		otellog.String("demo.order.currency", currency),
+		otellog.String("demo.order.outcome", "abandoned"),
+	}
 	for _, kv := range customerAttrs {
 		attrs = append(attrs, otellog.String(string(kv.Key), kv.Value.Emit()))
 	}
