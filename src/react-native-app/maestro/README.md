@@ -11,7 +11,7 @@ runs and its UI is exercised — that is what these flows do.
 
 By default the flows point the app at the publicly hosted demo backend:
 
-```
+```text
 http://astroshop.westus2.cloudapp.azure.com:8080
 ```
 
